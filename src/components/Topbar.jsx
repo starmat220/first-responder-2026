@@ -1,23 +1,5 @@
-const BUILDING_DEPT_META = {
-  police: { short: 'PD', className: 'police' },
-  fire: { short: 'FD', className: 'fire' },
-  ems: { short: 'EMS', className: 'ems' },
-  tow: { short: 'TOW', className: 'tow' },
-  detention: { short: 'JAIL', className: 'detention' },
-}
-
-const getBuildMeta = (building) => {
-  if (!building) return BUILDING_DEPT_META.police
-  if (building.category === 'detention') return BUILDING_DEPT_META.detention
-  return BUILDING_DEPT_META[building.department] || BUILDING_DEPT_META.police
-}
-
-const getBuildOptionLabel = (building) => {
-  const meta = getBuildMeta(building)
-  return building.enabled
-    ? `[${meta.short}] ${building.label} ($${building.cost})`
-    : `[${meta.short}] ${building.label} (Coming soon)`
-}
+import React from 'react'
+import '../Theme.css'
 
 const Topbar = ({
   money,
@@ -27,20 +9,14 @@ const Topbar = ({
   level,
   parkedCount,
   totalVehicles,
-  showIncidents,
-  setShowIncidents,
   station,
   hasStations,
-  onToggleLedger,
   saveSlot,
   setSaveSlot,
   saveSlotCount,
   onStartPlaceStation,
-  stationBuildCost,
   placingStation,
   onCancelPlacement,
-  showCases,
-  onToggleCases,
   showBuildMenu,
   onToggleBuildMenu,
   buildOptions,
@@ -48,115 +24,142 @@ const Topbar = ({
   onChangeBuildingType,
   onStartBuildingPlacement,
   onCancelBuildMenu,
-  selectedBuildOption,
-}) => (
-  <header className="topbar">
-    <div className="topbar__title">
-      <p className="eyebrow">First Responder 2026</p>
-      <h1>Oromocto Mission Control</h1>
-      {station && <p className="subhead">Active Station: {station.name}</p>}
-      {!station && hasStations && <p className="subhead">Active Station: None</p>}
-    </div>
-    <div className="topbar__right">
-      <div className="topbar__stats">
-        <button className="stat stat--button" onClick={onToggleLedger}>
-          <p className="label">Cash</p>
-          <p className="value">${money.toLocaleString()}</p>
-        </button>
-        <div className="stat stat--level">
-          <p className="label">Level</p>
-          <p className="value">{level}</p>
+  onMutualAid,
+  onResetLayout,
+  onOpenFunds,
+  playerName,
+  playerCallsign,
+  playerTitle,
+  playerAvatar,
+  missionDayKey,
+  weatherSummary,
+  weatherNextUpdateLabel,
+  operationsPhase,
+  onEditProfile,
+}) => {
+  const tacticalTime = new Date().toLocaleTimeString([], {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  const weatherLabel = weatherSummary || 'Clear 20C'
+  const weatherEtaLabel = weatherNextUpdateLabel || '--:--'
+  const dayLabel = missionDayKey || 'DAY-01'
+  const phaseLabel = operationsPhase || 'BASIC OPS'
+
+  return (
+    <div className="hud-top">
+      {/* Left: Branding & Station Context */}
+      <div className="hud-section hud-section--brand">
+        <div
+          className="avatar avatar--dispatcher"
+          style={{ cursor: 'pointer', borderColor: 'var(--color-police)' }}
+          onClick={onEditProfile}
+          title="Edit Profile"
+        >
+          <img src={playerAvatar} alt="Dispatcher" />
         </div>
-        <div className="stat">
-          <p className="label">Active Incidents</p>
-          <p className="value">{activeIncidentCount}</p>
-        </div>
-        <div className="stat">
-          <p className="label">Trust</p>
-          <p className="value">{publicTrust}</p>
-        </div>
-        <div className="stat">
-          <p className="label">Score</p>
-          <p className="value">{score}</p>
-        </div>
-        <div className="stat">
-          <p className="label">Garage</p>
-          <p className="value">
-            {parkedCount}/{totalVehicles}
+        <div className="hud-info">
+          <h1>{playerCallsign.toUpperCase()} CONTROL</h1>
+          <p className="subhead">
+            {playerTitle} {playerName.toUpperCase()} · {station ? `ACTIVE: ${station.name}` : hasStations ? 'STATION DISCONNECTED' : 'SYSTEM OFFLINE'} · {phaseLabel}
           </p>
         </div>
-      </div>
-      <div className="topbar__tabs">
-        <div className="topbar__slot">
-          <span className="label">Save</span>
-          <select
-            value={saveSlot}
-            onChange={(event) => setSaveSlot(Number(event.target.value))}
-          >
-            {Array.from({ length: saveSlotCount }).map((_, index) => (
-              <option key={`slot-${index + 1}`} value={index + 1}>
-                Slot {index + 1}
-              </option>
-            ))}
-          </select>
+        <div className="hud-stat" style={{ marginLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '16px', borderRight: 'none' }}>
+          <span className="label">TACTICAL TIME</span>
+          <span className="value" style={{ letterSpacing: '0.15em', fontSize: '1.2rem', color: 'var(--color-police)' }}>
+            {tacticalTime}
+          </span>
         </div>
+        <div className="hud-weather">
+          <span className="label">WX · {dayLabel}</span>
+          <span className="value">{weatherLabel} · NX {weatherEtaLabel}</span>
+        </div>
+      </div>
+
+      {/* Center: Vital Stats */}
+      <div className="hud-section hud-section--stats">
         <button
-          className={`tab ${placingStation ? 'tab--active' : ''}`}
-          onClick={
-            placingStation
-              ? onCancelPlacement
-              : station
-              ? onToggleBuildMenu
-              : onStartPlaceStation
-          }
+          type="button"
+          className={`hud-stat ${onOpenFunds ? 'hud-stat--interactive' : ''}`}
+          onClick={onOpenFunds}
+          title="Open Financial Audit"
         >
-          {placingStation
-            ? 'Cancel Placement'
-            : station
-            ? 'Add Building'
-            : `Place Station ($${stationBuildCost})`}
+          <span className="label">FUNDS</span>
+          <span className="value">${money.toLocaleString()}</span>
         </button>
+        <div className="hud-stat">
+          <span className="label">TRUST</span>
+          <span className="value" style={{ color: publicTrust < 40 ? 'var(--color-urgent)' : 'var(--color-success)' }}>
+            {publicTrust}%
+          </span>
+        </div>
+        <div className="hud-stat">
+          <span className="label">LEVEL</span>
+          <span className="value">{level}</span>
+        </div>
+        <div className="hud-stat">
+          <span className="label">SCORE</span>
+          <span className="value">{score.toLocaleString()}</span>
+        </div>
+        <div className="hud-stat">
+          <span className="label">ACTIVE</span>
+          <span className="value">{activeIncidentCount}</span>
+        </div>
+        <div className="hud-stat">
+          <span className="label">FLEET</span>
+          <span className="value">{parkedCount}/{totalVehicles}</span>
+        </div>
+      </div>
+
+      {/* Right: Actions */}
+      <div className="hud-section hud-section--actions">
+        {placingStation ? (
+          <button className="cmd-btn cmd-btn--primary" onClick={onCancelPlacement}>CANCEL</button>
+        ) : (
+          <button
+            className="cmd-btn"
+            onClick={station ? onToggleBuildMenu : onStartPlaceStation}
+          >
+            {station ? '+ BUILD' : 'INIT STATION'}
+          </button>
+        )}
+
         {showBuildMenu && !placingStation && (
-          <div className="topbar__build-menu">
-            <span
-              className={`topbar__build-badge topbar__build-badge--${getBuildMeta(selectedBuildOption).className}`}
-            >
-              {getBuildMeta(selectedBuildOption).short}
-            </span>
+          <div className="hud-popover">
             <select
-              className="filter-select"
+              className="cmd-select"
               value={placingBuildingType}
-              onChange={(event) => onChangeBuildingType(event.target.value)}
+              onChange={(e) => onChangeBuildingType(e.target.value)}
             >
-              {buildOptions.map((building) => (
-                <option key={building.id} value={building.id}>
-                  {getBuildOptionLabel(building)}
-                </option>
+              {buildOptions.map(b => (
+                <option key={b.id} value={b.id}>{b.label} (${b.cost})</option>
               ))}
             </select>
-            <button className="btn btn--small" onClick={onStartBuildingPlacement}>
-              Start
-            </button>
-            <button className="btn btn--ghost btn--small" onClick={onCancelBuildMenu}>
-              Cancel
-            </button>
+            <button className="cmd-btn cmd-btn--primary" onClick={onStartBuildingPlacement}>PLACE</button>
+            <button className="cmd-btn cmd-btn--ghost" onClick={onCancelBuildMenu}>X</button>
           </div>
         )}
-        <button
-          className={`tab ${showIncidents ? 'tab--active' : ''}`}
-          onClick={() => setShowIncidents((prev) => !prev)}
-        >
-          Incidents
+
+        <button className="cmd-btn" onClick={onResetLayout} title="Reset Layout">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" /></svg>
         </button>
-        <button
-          className={`tab ${showCases ? 'tab--active' : ''}`}
-          onClick={onToggleCases}
+
+        <button className="cmd-btn cmd-btn--urgent" onClick={onMutualAid}>BACKUP</button>
+
+        <select
+          className="cmd-select cmd-select--slot"
+          value={saveSlot}
+          onChange={(e) => setSaveSlot(Number(e.target.value))}
         >
-          History
-        </button>
+          {Array.from({ length: saveSlotCount }).map((_, i) => (
+            <option key={i} value={i + 1}>SLOT {i + 1}</option>
+          ))}
+        </select>
       </div>
     </div>
-  </header>
-)
+  )
+}
 
 export default Topbar

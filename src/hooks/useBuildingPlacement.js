@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { FEATURE_FLAGS } from '../config/features'
 import { BUILDING_CATALOG } from '../game/catalog'
+import { PROGRESSION_MILESTONES } from '../game/constants'
 import { STATION_TYPES } from '../game/departments'
 
 export const useBuildingPlacement = ({
   getBuildingCost,
+  progression,
   onStartPlacement,
   onUnavailableBuilding,
   onCancelPlacement,
@@ -20,19 +21,47 @@ export const useBuildingPlacement = ({
   const buildOptions = useMemo(
     () =>
       BUILDING_CATALOG.map((building) => {
-        const enabled =
-          building.id === STATION_TYPES.police_station.id ||
-          building.id === STATION_TYPES.prison.id ||
-          (building.id === STATION_TYPES.fire_station.id && FEATURE_FLAGS.enableFireStationPreview) ||
-          (building.id === STATION_TYPES.ems_station.id && FEATURE_FLAGS.enableEmsStationPreview) ||
-          (building.id === STATION_TYPES.tow_yard.id && FEATURE_FLAGS.enableTowYardPreview)
+        const type = STATION_TYPES[building.id]
+        const dept = type?.department
+
+        let enabled = false
+
+        // Base Police/Prison always enabled
+        if (dept === 'police' && type.size !== 'elite') enabled = true
+        if (building.id === STATION_TYPES.prison.id) enabled = true
+
+        // Fire gates
+        if (dept === 'fire' && progression?.fireStationUnlocked) enabled = true
+
+        // EMS gates
+        if (dept === 'ems' && progression?.emsStationUnlocked) enabled = true
+
+        // Tow gates
+        if (dept === 'tow' && progression?.towYardUnlocked) enabled = true
+
+        // Coastal gates
+        if (dept === 'coastal' && progression?.towYardUnlocked) enabled = true // Coastal unlocks with Tow
+
+        // Public Works gates
+        if (dept === 'public_works' && progression?.publicWorksUnlocked) enabled = true // PW unlocks later
+
+        // Logistics/Hubs gates - require more experience (e.g. 25 resolved)
+        if (type?.category === 'hub' || type?.category === 'training' || type?.category === 'medical_hub') {
+          enabled = enabled && (progression?.resolvedCount >= PROGRESSION_MILESTONES.hubUnlockAt)
+        }
+
+        // Aviation/Water gates - require some experience (e.g. 10 resolved)
+        if (type?.category === 'aviation' || type?.category === 'water') {
+          enabled = enabled && (progression?.resolvedCount >= PROGRESSION_MILESTONES.aviationUnlockAt)
+        }
+
         return {
           ...building,
           enabled,
           cost: getBuildingCost(building.id),
         }
       }),
-    [getBuildingCost]
+    [getBuildingCost, progression]
   )
 
   const selectedBuildOption =

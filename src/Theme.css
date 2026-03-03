@@ -1,0 +1,1478 @@
+:root {
+  /* Core Colors */
+  --color-bg-dark: #0a0f16;
+  --color-panel-bg: rgba(12, 18, 26, 0.85);
+  --color-panel-border: rgba(130, 161, 198, 0.2);
+  --color-text-main: #eef5ff;
+  --color-text-muted: #8da4bf;
+  
+  /* Department Accents */
+  --color-police: #60abff;
+  --color-fire: #ff7a65;
+  --color-ems: #ffb254;
+  --color-tow: #ffd17d;
+  --color-public_works: #a0aec0;
+  --color-urgent: #ff4757;
+  --color-success: #2ecc71;
+
+  /* UI Tokens */
+  --glass-blur: blur(12px);
+  --panel-radius: 12px;
+  --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --border-glow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  
+  /* Typography */
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-ui: system-ui, -apple-system, sans-serif;
+}
+
+/* Global Reset & Base */
+body {
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-main);
+  font-family: var(--font-ui);
+}
+
+/* The "Command Panel" container style */
+.cmd-panel {
+  background: var(--color-panel-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--panel-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.cmd-header {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--color-panel-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cmd-header__title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmd-content {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+/* Utility: Status Badges */
+.status-badge {
+  font-size: 0.55rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.status-badge--live { border-color: var(--color-urgent); color: var(--color-urgent); box-shadow: 0 0 8px rgba(255, 71, 87, 0.2); }
+.status-badge--safe { border-color: var(--color-success); color: var(--color-success); }
+
+/* Utility: Buttons */
+.cmd-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-text-main);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+}
+
+.cmd-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.cmd-btn--primary {
+  background: rgba(96, 171, 255, 0.15);
+  border-color: rgba(96, 171, 255, 0.4);
+  color: #dbeaff;
+}
+
+.cmd-btn--primary:hover:not(:disabled) {
+  background: rgba(96, 171, 255, 0.25);
+  border-color: #60abff;
+  box-shadow: 0 0 12px rgba(96, 171, 255, 0.2);
+}
+
+.cmd-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+
+.cmd-btn--ghost:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+/* HUD Topbar */
+.hud-top {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  height: 54px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  background: rgba(12, 18, 26, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 12px;
+  z-index: 100;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.hud-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-logo {
+  font-weight: 900;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  color: var(--color-police);
+  border: 2px solid var(--color-police);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.hud-info h1 {
+  font-size: 0.75rem;
+  margin: 0;
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+
+.hud-info .subhead {
+  font-size: 0.55rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.hud-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding-right: 12px;
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-bottom: none;
+}
+
+.hud-stat:last-child {
+  border-right: none;
+}
+
+.hud-stat .label {
+  font-size: 0.5rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.1em;
+}
+
+.hud-stat .value {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: #fff;
+  line-height: 1;
+}
+
+.hud-stat--interactive {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 6px 10px 6px 0;
+  margin-right: -2px;
+  transition: background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.hud-stat--interactive:hover {
+  background: rgba(96, 171, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(96, 171, 255, 0.14);
+}
+
+.hud-stat--interactive:focus-visible {
+  outline: 2px solid rgba(96, 171, 255, 0.55);
+  outline-offset: 2px;
+}
+
+.hud-weather {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hud-weather .label {
+  font-size: 0.5rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.1em;
+}
+
+.hud-weather .value {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  color: #d8e8ff;
+  white-space: nowrap;
+}
+
+@media (max-width: 1440px) {
+  .hud-weather .value {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 1200px) {
+  .hud-weather {
+    display: none;
+  }
+}
+
+.cmd-select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  cursor: pointer;
+}
+
+.hud-popover {
+  position: absolute;
+  top: 64px;
+  right: 0;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  gap: 6px;
+  backdrop-filter: blur(12px);
+}
+
+.cmd-btn--urgent {
+  background: rgba(255, 71, 87, 0.15);
+  border-color: rgba(255, 71, 87, 0.4);
+  color: #ff8a8a;
+}
+
+.cmd-btn--urgent:hover {
+  background: rgba(255, 71, 87, 0.25);
+}
+
+/* Incident Cards */
+.incident-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--color-police);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.incident-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.incident-card--compact {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+}
+
+.incident-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.incident-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.incident-card__type {
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: #fff;
+}
+
+.incident-card__timer {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.incident-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.incident-card__actions {
+  display: flex;
+  gap: 5px;
+}
+
+.cmd-select--small {
+  padding: 3px 6px;
+  font-size: 0.6rem;
+  flex: 1;
+}
+
+.incident-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.incident-bar__fill {
+  height: 100%;
+  transition: width 0.5s linear;
+}
+
+/* Welcome Terminal */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 10, 15, 0.95);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.welcome-terminal {
+  width: min(500px, 90vw);
+  background: rgba(12, 18, 26, 0.9);
+  border: 1px solid var(--color-police);
+  border-radius: 16px;
+  box-shadow: 0 0 60px rgba(96, 171, 255, 0.15);
+  overflow: hidden;
+}
+
+.welcome-header {
+  background: rgba(96, 171, 255, 0.1);
+  padding: 16px;
+  border-bottom: 1px solid var(--color-police);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.welcome-header h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+
+.welcome-body {
+  padding: 20px;
+  color: #a0b3cc;
+  font-family: 'Consolas', monospace;
+  line-height: 1.5;
+}
+
+.welcome-text {
+  margin-bottom: 20px;
+  color: var(--color-police);
+  opacity: 0.8;
+}
+
+.welcome-briefing {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.welcome-briefing h3 {
+  margin-top: 0;
+  color: #fff;
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+}
+
+.welcome-briefing ul {
+  padding-left: 20px;
+  margin-bottom: 0;
+}
+
+.welcome-footer {
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cmd-btn--large {
+  padding: 12px 24px;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+}
+
+/* Adjust Dock for HUD */
+.dock {
+  top: 96px !important;
+  max-height: calc(100vh - 112px) !important;
+}
+
+/* Secondary Panel Positioning & Styles */
+.test-panel, .layers-panel, .intel-panel, .cases-panel, .ledger {
+  top: 96px !important;
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-panel-border) !important;
+  border-radius: var(--panel-radius) !important;
+  box-shadow: var(--panel-shadow) !important;
+}
+
+.test-panel-toggle {
+  top: 96px !important;
+}
+
+.placement-bar--top {
+  top: 96px !important;
+  background: rgba(12, 18, 26, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid var(--color-police) !important;
+  box-shadow: 0 0 30px rgba(96, 171, 255, 0.2) !important;
+}
+
+.layers-toggle {
+  top: 96px !important;
+  right: 16px !important;
+}
+
+/* Unit Status Strip (Bottom Left) */
+.unit-strip {
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-panel-border) !important;
+  border-radius: var(--panel-radius) !important;
+  bottom: 16px !important;
+  left: 16px !important;
+}
+
+.unit-strip__title {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--color-police);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.unit-strip__grid strong {
+  color: #fff !important;
+  font-size: 0.9rem !important;
+}
+
+/* Radio Feed Placement */
+.radio-feed {
+  bottom: 16px !important;
+  right: 16px !important;
+  max-height: 140px !important;
+}
+
+/* General Button & Input Overrides for Theme Consistency */
+.btn, .filter-pill {
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-select, .cmd-select, .station-input {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+}
+
+/* Alerts & Notifications */
+.alerts {
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-urgent) !important;
+  box-shadow: 0 0 20px rgba(255, 71, 87, 0.1) !important;
+}
+
+.alerts__title {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--color-urgent);
+  margin-bottom: 6px;
+}
+
+.alerts__item {
+  background: rgba(255, 71, 87, 0.05) !important;
+  border: 1px solid rgba(255, 71, 87, 0.1) !important;
+}
+
+/* Debriefs Panel */
+.debriefs {
+  left: 16px !important;
+  bottom: 120px !important;
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-panel-border) !important;
+}
+
+.debriefs__card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Fixed Layers Container & Position */
+.layers-container {
+  position: absolute;
+  bottom: 16px;
+  left: 280px; /* Positioned next to the Unit Status Strip */
+  z-index: 31;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+}
+
+.layers-panel {
+  position: relative !important;
+  top: 0 !important;
+  width: 240px;
+  margin-bottom: 8px;
+}
+
+/* Intel Panel Stacking */
+.intel-panel {
+  top: 320px !important; /* Move Intel panel lower so it doesn't overlap Test panel */
+  max-height: calc(100vh - 340px) !important;
+}
+
+/* Financial Ledger & Case stacking */
+.cases-panel {
+  width: min(600px, 95vw) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+.ledger {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+/* Command Hint & Toast Positioning */
+.command-hint, .toast {
+  top: 96px !important;
+  z-index: 150 !important; /* Ensure it floats above other panels */
+}
+
+.command-hint {
+  width: min(400px, 90vw) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+.toast {
+  background: rgba(96, 171, 255, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid #fff !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  font-family: var(--font-display) !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Relocate Command Hint & Toast to Bottom Center */
+.command-hint, .toast {
+  top: auto !important;
+  bottom: 120px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 500 !important;
+}
+
+.toast {
+  bottom: 180px !important;
+}
+
+/* Ensure panels don't overlap on the right */
+.test-panel {
+  top: 96px !important;
+  right: 16px !important;
+  width: 320px !important;
+}
+
+.intel-panel {
+  top: auto !important;
+  bottom: 16px !important;
+  right: 350px !important; /* Positioned to the left of the Radio Feed */
+  width: 360px !important;
+  max-height: 400px !important;
+}
+
+/* Map Layers (Bottom Left area) */
+.layers-container {
+  left: 320px !important; /* Move it further right to not overlap unit-strip */
+  bottom: 16px !important;
+}
+
+/* UI Fixes: Opacity & Visibility */
+:root {
+  --color-panel-bg: rgba(12, 18, 26, 0.98); /* Much more opaque */
+  --glass-blur: blur(20px);
+}
+
+.cmd-panel {
+  background: var(--color-panel-bg) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Relocate Layers to Top Right (Staggered) */
+.layers-container {
+  top: 96px !important;
+  right: 350px !important; /* To the left of the Test Panel */
+  bottom: auto !important;
+  left: auto !important;
+  position: absolute !important;
+}
+
+.layers-panel {
+  width: 220px !important;
+}
+
+.test-panel {
+  top: 96px !important;
+}
+
+.alerts__item {
+  padding: 8px !important;
+  margin-bottom: 6px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  gap: 10px !important;
+  align-items: center !important;
+}
+
+.alerts__item .title {
+  font-size: 0.75rem !important;
+  margin: 0 !important;
+}
+
+.alerts__item .muted {
+  font-size: 0.65rem !important;
+}
+
+/* Ensure Test Tools is visible */
+.test-panel .cmd-content {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+/* Final Layout Reorganization */
+.radio-feed {
+  bottom: 16px !important;
+  right: 16px !important;
+  width: 320px !important;
+  z-index: 100 !important;
+}
+
+.intel-panel {
+  bottom: 16px !important;
+  right: 350px !important; /* To the left of the Radio Feed */
+  top: auto !important;
+  width: 360px !important;
+  max-height: 450px !important;
+}
+
+.unit-strip {
+  bottom: 80px !important;
+  left: 16px !important;
+  width: 280px !important;
+  z-index: 100 !important;
+}
+
+/* Ensure the Layers tab is visible and not transparent */
+.layers-container .cmd-btn {
+  background: rgba(96, 171, 255, 0.2) !important;
+  border: 1px solid var(--color-police) !important;
+  color: #fff !important;
+}
+
+.cmd-header {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.cmd-content {
+  background: transparent !important;
+}
+
+.cmd-panel {
+  border: 2px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.cmd-panel {
+  background-color: #0c121a !important; /* Solid dark background */
+  opacity: 1 !important;
+}
+
+.layers-container {
+  z-index: 500 !important;
+}
+
+.layers-container .cmd-btn {
+  background: #1a2530 !important;
+  border: 1px solid #60abff !important;
+  opacity: 1 !important;
+  color: #fff !important;
+}
+
+/* Standardized Toggle Buttons */
+.test-panel-toggle, .layers-container .cmd-btn {
+  background: #1a2530 !important;
+  border: 1px solid var(--color-police) !important;
+  opacity: 1 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  font-weight: 700 !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+}
+
+.test-panel-toggle:hover, .layers-container .cmd-btn:hover {
+  background: #243440 !important;
+  border-color: #fff !important;
+}
+
+/* Final UI Interaction Refinement */
+.test-panel-toggle, .layers-container .cmd-btn {
+  z-index: 1000 !important;
+}
+
+/* Rotate rings in CSS for simpler math: 12 o'clock start */
+.incident-ring, .incident-ring-outline {
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* High-Tech Avatar Styling */
+.avatar {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color-police);
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(96, 171, 255, 0.3);
+  background: #000;
+}
+
+.avatar--dispatcher {
+  width: 36px;
+  height: 36px;
+  border-color: var(--color-success);
+}
+
+.avatar--citizen {
+  width: 44px;
+  height: 44px;
+  border-color: var(--color-text-muted);
+}
+
+.avatar--officer {
+  width: 24px;
+  height: 24px;
+  border-width: 1px;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: contrast(1.1) brightness(0.9) saturate(0.8) hue-rotate(-10deg);
+}
+
+/* Scanline Effect Overlay */
+.avatar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.15) 0px,
+    rgba(0, 0, 0, 0.15) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+}
+
+.hud-logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.radio-entry__avatar {
+  margin-top: 2px;
+}
+
+.welcome-advisor {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.welcome-advisor .avatar {
+  width: 100px;
+  height: 100px;
+  border-width: 3px;
+}
+
+/* Incident Card Journey Visualization */
+.incident-bar--journey {
+  background: rgba(255, 255, 255, 0.05) !important;
+  position: relative !important;
+  overflow: visible !important;
+  height: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.incident-unit-marker {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 6px !important;
+  background: var(--unit-color, var(--color-police)) !important;
+  border: 2px solid #fff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.65rem !important;
+  font-weight: 900 !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px var(--unit-color, var(--color-police));
+  z-index: 10 !important;
+  transition: left 0.1s linear;
+}
+
+.incident-unit-marker::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #fff;
+}
+
+.incident-card--responding .incident-card__type {
+  color: var(--color-police) !important;
+  text-shadow: 0 0 8px rgba(96, 171, 255, 0.4);
+}
+
+/* Notification (Toast) Refinement */
+.toast {
+  top: 96px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: rgba(12, 18, 26, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 2px solid var(--color-police) !important;
+  color: #fff !important;
+  padding: 12px 24px !important;
+  border-radius: 12px !important;
+  font-family: var(--font-display) !important;
+  font-size: 1rem !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  box-shadow: 0 0 30px rgba(96, 171, 255, 0.2) !important;
+  z-index: 2000 !important;
+}
+
+.radio-entry__time {
+  color: rgba(130, 161, 198, 0.5) !important;
+  min-width: 40px !important;
+  font-size: 0.7rem !important;
+}
+
+.radio-entry__channel {
+  color: #8da4bf !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 0.7rem !important;
+}
+
+/* Relocate Recommended Action below HUD */
+.command-hint {
+  top: 160px !important;
+  bottom: auto !important;
+  z-index: 400 !important;
+}
+
+/* Increased Radio Feed Height */
+.radio-feed {
+  max-height: 280px !important; /* Made significantly taller for larger font */
+}
+
+/* Green Pulse for On-Scene Units */
+@keyframes green-pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+
+.marker--vehicle-scene::after {
+  border-color: var(--color-success) !important;
+  animation: siren-a 1s infinite alternate, green-pulse-ring 2s infinite ease-out !important;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* Windowing System Styles */
+.window-wrapper {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  min-width: 200px;
+  min-height: 40px;
+  pointer-events: auto !important;
+}
+
+.window-header {
+  cursor: move;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.window-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.window-control-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #000;
+  font-weight: bold;
+}
+
+.window-control-btn--minimize { background: #f1c40f; }
+.window-control-btn--close { background: #e74c3c; }
+
+.window-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.window-content--minimized {
+  display: none !important;
+}
+
+.window-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.2) 50%);
+  border-radius: 0 0 var(--panel-radius) 0;
+}
+
+/* Ensure cmd-panel works within window-wrapper */
+.window-wrapper .cmd-panel {
+  height: 100%;
+  width: 100%;
+  margin: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  position: relative !important;
+}
+
+/* Final Window System Refinements */
+.radio-feed-content, .panel-content-only {
+  background: transparent !important;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cmd-panel {
+  pointer-events: auto !important;
+}
+
+/* Removing resizing, keeping dragging & minimize with themed icons */
+.window-resize-handle {
+  display: none !important;
+}
+
+.window-control-btn {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 4px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.window-control-btn:hover {
+  background: var(--color-police) !important;
+  border-color: #fff !important;
+}
+
+.window-header {
+  user-select: none !important;
+}
+
+/* Removing big dark bar at bottom */
+.app {
+  display: block !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  overflow: hidden !important;
+  background: var(--color-bg-dark) !important;
+}
+
+.map-shell {
+  height: 100vh !important;
+  width: 100vw !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* Fix Sim Speed logic visuals */
+.sim-speed-active {
+  color: var(--color-success) !important;
+  text-shadow: 0 0 10px var(--color-success);
+}
+
+.app {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.map-shell {
+  flex: 1 !important;
+  position: relative !important;
+  top: 0 !important;
+  height: auto !important;
+}
+
+.hud-top {
+  margin-top: 0 !important;
+}
+
+.test-panel-toggle {
+  position: absolute !important;
+  right: 16px !important;
+  top: 96px !important;
+  z-index: 100 !important;
+}
+
+/* Final UI Interaction Refinement: Force High Opacity and Stacking */
+.cmd-panel, .test-panel-toggle, .layers-container .cmd-btn {
+  background-color: #0c121a !important;
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.05), transparent) !important;
+  opacity: 1 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Relocate Layers to top-right area but shifted left to avoid overlap */
+.layers-container {
+  top: 96px !important;
+  right: 360px !important; /* Test panel is at 16px + 320px width = 336px */
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 1100 !important;
+}
+
+.test-panel-toggle {
+  right: 16px !important;
+  top: 96px !important;
+  z-index: 1100 !important;
+}
+
+/* Contextual Stacking: If Test Panel is open, Alerts move lower */
+/* (Since we can't easily detect React state in pure CSS, we use a safer default offset) */
+.alerts-context {
+  transform: translateY(0);
+  transition: transform 0.3s ease;
+}
+
+/* Manual override for when test tools are likely open */
+.intel-panel {
+  bottom: 16px !important;
+  right: 350px !important;
+  top: auto !important;
+  z-index: 1000 !important;
+}
+
+/* Fixing on-scene pulse to green for all units */
+@keyframes green-pulse-ring {
+  0% { stroke-width: 10; opacity: 0.8; }
+  50% { stroke-width: 20; opacity: 0.2; }
+  100% { stroke-width: 10; opacity: 0.8; }
+}
+
+.marker--vehicle-scene::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid var(--color-success) !important;
+  box-shadow: 0 0 15px var(--color-success) !important;
+  animation: green-pulse-ring 1.5s infinite ease-in-out !important;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Standardized Toggle Buttons - Solid & Visible */
+.test-panel-toggle, .layers-container .cmd-btn {
+  background-color: #0c121a !important;
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.05), transparent) !important;
+  border: 2px solid var(--color-police) !important;
+  opacity: 1 !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+  z-index: 1100 !important;
+}
+
+/* Fix Incident Ticker Dash Math */
+.incident-ring {
+  transition: stroke-dasharray 0.3s ease, stroke-dashoffset 0.3s ease;
+}
+
+/* === FINAL POLISH & VISUAL JUICE === */
+
+/* 1. Global Typography Bump */
+:root {
+  --font-size-base: 12px;
+  --font-size-sm: 10px;
+  --font-size-xs: 9px;
+}
+
+.cmd-content, .window-content {
+  font-size: var(--font-size-base);
+}
+
+.muted {
+  color: #a0b3cc !important; /* Higher contrast blue-grey */
+}
+
+/* 2. Tactile Button Feel */
+.cmd-btn {
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.cmd-btn:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Glowing hover effect */
+.cmd-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.1), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
+}
+
+.cmd-btn:hover::after {
+  transform: translateX(100%);
+}
+
+/* 3. Enhanced Radio Live Indicator */
+.radio-feed__live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-urgent);
+  text-shadow: 0 0 8px rgba(255, 71, 87, 0.6);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+}
+
+.radio-feed__live-indicator::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--color-urgent);
+  border-radius: 50%;
+  animation: pulse-live 1.2s ease-in-out infinite;
+}
+
+/* 4. Scrollbar Polish */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(96, 171, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 171, 255, 0.5);
+}
+
+/* 5. Recommended Action Position Tweak */
+.command-hint {
+  top: 130px !important;
+  /* Slight backdrop boost for readability */
+  background: linear-gradient(180deg, rgba(12, 18, 26, 0.95), rgba(12, 18, 26, 0.98)) !important;
+  border: 1px solid var(--color-police) !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+
+/* 6. Incident List Spacing */
+.incident-card {
+  margin-bottom: 2px;
+}
+
+/* 7. Fleet Status Clarity */
+.pill--cooldown {
+  border-color: var(--color-tow) !important;
+  color: #ffe2b7 !important;
+  animation: pulse-slow 2s infinite;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* Enhanced Live Indicator Animation */
+@keyframes pulse-live {
+  0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 71, 87, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+}
+
+.radio-feed__live-indicator::before {
+  animation: pulse-live 2s infinite;
+}
+
+/* Regional Intelligence Ticker */
+.regional-ticker {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: rgba(12, 18, 26, 0.95);
+  border-top: 1px solid var(--color-panel-border);
+  display: flex;
+  align-items: center;
+  z-index: 100;
+  overflow: hidden;
+  font-family: 'Consolas', monospace;
+}
+
+.regional-ticker__label {
+  background: var(--color-urgent);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 900;
+  padding: 0 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0.1em;
+  z-index: 2;
+  box-shadow: 4px 0 10px rgba(0,0,0,0.5);
+}
+
+.regional-ticker__track {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.regional-ticker__content {
+  display: inline-block;
+  padding-left: 100%;
+  animation: ticker-scroll 60s linear infinite;
+  font-size: 0.75rem;
+  color: var(--color-police);
+  opacity: 0.8;
+}
+
+/* Taskbar / Dock */
+.taskbar {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 48px;
+  padding: 0 16px;
+  background: rgba(12, 18, 26, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 500;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.taskbar-item {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.taskbar-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.taskbar-item--active {
+  background: rgba(96, 171, 255, 0.15);
+  color: var(--color-police);
+  border-color: var(--color-police);
+  box-shadow: 0 0 12px rgba(96, 171, 255, 0.2);
+}
+
+.taskbar-item--urgent.taskbar-item--active {
+  color: var(--color-urgent);
+  border-color: var(--color-urgent);
+  box-shadow: 0 0 12px rgba(255, 71, 87, 0.2);
+}
+
+.taskbar-item__tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: #000;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.taskbar-item:hover .taskbar-item__tooltip {
+  opacity: 1;
+}
+
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}

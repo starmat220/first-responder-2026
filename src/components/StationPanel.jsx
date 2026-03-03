@@ -1,26 +1,31 @@
+import React from 'react'
 import FleetPanel from './FleetPanel'
-import { DEPARTMENTS, STATION_TYPES } from '../game/departments'
+import StaffRoster from './StaffRoster'
+import { PROGRESSION_MILESTONES } from '../game/constants'
+import { DEPARTMENTS } from '../game/departments'
+import '../Theme.css'
 
-const OverviewRow = ({ label, value }) => (
-  <div className="station-kpi">
-    <p className="station-kpi__label">{label}</p>
-    <p className="station-kpi__value">{value}</p>
+const StatItem = ({ label, value }) => (
+  <div className="station-stat-item">
+    <span className="station-stat-item__label">{label}</span>
+    <span className="station-stat-item__value">{value}</span>
   </div>
 )
 
-const getStationTypeLabel = (stationTypeId) =>
-  Object.values(STATION_TYPES).find((item) => item.id === stationTypeId)?.label || 'Station'
-
-const getDepartmentLabel = (departmentId) =>
-  Object.values(DEPARTMENTS).find((item) => item.id === departmentId)?.label || 'Operations'
+const ModuleCard = ({ title, children, action }) => (
+  <div className="module-card">
+    <div className="module-card__header">
+      <h3 className="module-card__title">{title}</h3>
+      {action}
+    </div>
+    <div className="module-card__body">{children}</div>
+  </div>
+)
 
 const StationPanel = ({
   stationPanelTab,
   setStationPanelTab,
   station,
-  stations,
-  activeStationId,
-  setActiveStationId,
   handleBuyVehicle,
   handleGarageUpgrade,
   handleHQUpgrade,
@@ -33,6 +38,7 @@ const StationPanel = ({
   garageUpgradeCost,
   hqUpgradeCost,
   trainingUpgradeCost,
+  kennelUpgradeCost,
   stationNameDraft,
   setStationNameDraft,
   onRenameStation,
@@ -45,347 +51,200 @@ const StationPanel = ({
   onAssignCrew,
   onReleaseCrew,
   onTrainingUpgrade,
-  prisonSummary,
+  onKennelUpgrade,
   onTransferDetention,
   onDeleteStation,
   stationSummary,
   onUpdateShiftPreset,
   onUpdateMinOnDuty,
+  onAssignCrewMember,
+  onUnassignCrewMember,
 }) => {
-  const stationTypeLabel = getStationTypeLabel(station?.stationType)
-  const departmentLabel = getDepartmentLabel(station?.department)
   const departmentId = station?.department || DEPARTMENTS.police.id
   const isPolice = departmentId === DEPARTMENTS.police.id
   const isFire = departmentId === DEPARTMENTS.fire.id
   const isEms = departmentId === DEPARTMENTS.ems.id
   const isTow = departmentId === DEPARTMENTS.tow.id
+  const isPW = departmentId === DEPARTMENTS.public_works.id
 
-  const staffingPrimaryLabel = isPolice
-    ? 'Patrol Officers'
-    : isFire
-    ? 'Firefighters'
-    : isEms
-    ? 'Paramedics'
-    : isTow
-    ? 'Recovery Operators'
-    : 'Operators'
-  const staffingSecondaryLabel = isPolice
-    ? 'Dispatch Staff'
-    : isFire
-    ? 'Incident Command'
-    : isEms
-    ? 'Triage Staff'
-    : isTow
-    ? 'Roadside Dispatch'
-    : 'Dispatch Staff'
-  const staffingThirdLabel = isPolice
-    ? 'Supervisors'
-    : isFire
-    ? 'Rescue Specialists'
-    : isEms
-    ? 'Field Medics'
-    : isTow
-    ? 'Heavy Recovery'
-    : 'Field Leads'
-  const tabVehicleLabel = isFire ? 'Apparatus' : isEms ? 'Response Units' : isTow ? 'Recovery Fleet' : 'Vehicles'
-  const stationGlyph = isPolice ? 'P' : isFire ? 'F' : isEms ? 'E' : isTow ? 'T' : 'O'
-  const headerMetrics = [
-    { label: 'Level', value: station?.level || 1 },
-    { label: 'Status', value: 'In service' },
-    { label: 'Vehicles', value: `${vehicles.length} / ${station?.garageCapacity || 3}` },
-    { label: 'Response', value: `${Math.round((station?.responseBonus || 0) * 100)}%` },
-    { label: 'Training', value: `${Math.round((station?.trainingBonus || 0) * 100)}%` },
-    { label: 'Ops Radius', value: `${Math.round(station?.operationRadiusKm || 0)}km` },
-    {
-      label: isPolice ? 'Cells' : 'Ready',
-      value: isPolice
-        ? `${station?.jailCount || 0} / ${station?.jailCapacity || 0}`
-        : `${stationSummary?.statusCounts?.available || 0}`,
-    },
-    { label: 'Personnel', value: `${personnelAssigned} / ${personnelCapacity}` },
-  ]
+  const glyphText = isPolice ? 'P' : isFire ? 'F' : isEms ? 'E' : isPW ? 'PW' : 'T'
+
+  const activeVehicles = vehicles.filter(v => v.status === vehicleStatus.enroute || v.status === vehicleStatus.on_scene).length
+  const availableCount = vehicles.filter(v => v.status === vehicleStatus.available).length
+
+  const DEPT_RGB = {
+    police: '96, 171, 255',
+    fire: '255, 122, 101',
+    ems: '255, 178, 84',
+    tow: '255, 209, 125',
+    public_works: '160, 174, 192',
+  }
 
   return (
-    <div className={`panel station-panel station-panel--${departmentId}`}>
-      <div className="station-sticky-bar">
-        <div className="station-header">
-          <div>
-            <span className={`station-dept-glyph station-dept-glyph--${departmentId}`}>{stationGlyph}</span>
-            <p className="station-name">{station?.name || 'Unassigned Station'}</p>
-            <p className="muted">{`${stationTypeLabel} - ${departmentLabel} Operations`}</p>
-          </div>
-          <div className="station-header__meta">
-            {headerMetrics.map((metric) => (
-              <OverviewRow key={`header-metric-${metric.label}`} label={metric.label} value={metric.value} />
-            ))}
-          </div>
-        </div>
-        <div className="tabs tabs--inner">
-          <button
-            className={`tab ${stationPanelTab === 'overview' ? 'tab--active' : ''}`}
-            onClick={() => setStationPanelTab('overview')}
-          >
-            Overview
-          </button>
-          <button
-            className={`tab ${stationPanelTab === 'vehicles' ? 'tab--active' : ''}`}
-            onClick={() => setStationPanelTab('vehicles')}
-          >
-            {tabVehicleLabel}
-          </button>
-          <button
-            className={`tab ${stationPanelTab === 'staffing' ? 'tab--active' : ''}`}
-            onClick={() => setStationPanelTab('staffing')}
-          >
-            Staffing
-          </button>
-          {isPolice && (
-            <button
-              className={`tab ${stationPanelTab === 'detention' ? 'tab--active' : ''}`}
-              onClick={() => setStationPanelTab('detention')}
-            >
-              Detention
-            </button>
-          )}
-          <button
-            className={`tab ${stationPanelTab === 'extensions' ? 'tab--active' : ''}`}
-            onClick={() => setStationPanelTab('extensions')}
-          >
-            Extensions
-          </button>
-          <button
-            className={`tab ${stationPanelTab === 'complex' ? 'tab--active' : ''}`}
-            onClick={() => setStationPanelTab('complex')}
-          >
-            Building Complex
-          </button>
-          <button
-            className={`tab ${stationPanelTab === 'storage' ? 'tab--active' : ''}`}
-            onClick={() => setStationPanelTab('storage')}
-          >
-            Storage
-          </button>
-        </div>
-      </div>
-      <div className="station-card station-card--compact station-command-desk">
-        <div className="station-command-desk__header">
-          <p className="station-card__title">Command Desk</p>
-        </div>
-        <div className="station-management-grid">
-          <div className="station-management-cell">
-            <p className="station-card__title">Active Station</p>
-            <div className="station-action-row">
-              {stations?.length > 1 ? (
-                <select
-                  className="station-input"
-                  value={activeStationId || ''}
-                  onChange={(event) => setActiveStationId(Number(event.target.value))}
-                >
-                  {stations.map((item) => (
-                    <option key={`station-${item.id}`} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input className="station-input" value={station?.name || 'Station'} readOnly />
-              )}
-              <button
-                className="btn btn--danger btn--small"
-                onClick={() => {
-                  if (!onDeleteStation || !station) return
-                  const confirmText = `Delete station "${station.name}"? This cannot be undone.`
-                  if (window.confirm(confirmText)) {
-                    onDeleteStation()
-                  }
-                }}
-              >
-                Delete Station
-              </button>
-            </div>
-          </div>
-          <div className="station-management-cell">
-            <p className="station-card__title">Station Name</p>
-            <div className="station-action-row">
+    <div
+      className="panel-content-only station-panel-content"
+      style={{
+        '--station-accent-rgb': DEPT_RGB[departmentId] || DEPT_RGB.police,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%'
+      }}
+    >
+      {/* 1. Hero Section */}
+      <div className="station-hero" style={{ padding: '8px 0 16px' }}>
+        <div className="station-hero__info">
+          <div className="station-hero__glyph" style={{ background: 'rgba(var(--station-accent-rgb), 0.15)' }}>{glyphText}</div>
+          <div className="station-hero__name-group">
+            <div className="station-hero__name-wrap">
               <input
-                className="station-input"
+                className="station-hero__name"
                 value={stationNameDraft}
-                onChange={(event) => setStationNameDraft(event.target.value)}
-                placeholder="Oromocto HQ"
+                onChange={(e) => setStationNameDraft(e.target.value)}
+                onBlur={onRenameStation}
+                spellCheck={false}
               />
-              <button className="btn btn--small" onClick={onRenameStation}>
-                Save
-              </button>
+              <svg className="edit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
             </div>
+            <p className="muted">{DEPARTMENTS[departmentId].label} Operations · Level {station?.level || 1}</p>
           </div>
         </div>
-        <div className="station-management-cell station-management-cell--full">
-          <p className="station-card__title">Fleet Procurement</p>
-          <div className="station-action-row">
-            {availableUnits?.map((unit) => (
-              <button key={unit.id} className="btn" onClick={() => handleBuyVehicle(unit.id)}>
-                Buy {unit.label} Unit (${unitTypes[unit.id]?.cost ?? unit.cost})
-              </button>
-            ))}
+        <div className="station-hero__actions">
+          <div className="readiness-indicator">
+            <div className="readiness-dot" style={{ background: availableCount > 0 ? 'var(--color-success)' : 'var(--color-urgent)' }} />
+            <span style={{ fontSize: '0.7rem', fontWeight: '700' }}>{availableCount} UNITS READY</span>
           </div>
         </div>
       </div>
 
-      {stationPanelTab === 'overview' && (
-        <>
-          <div className="section-title">Operational Overview</div>
-          <div className="station-tab-grid station-tab-grid--overview">
-            <div className="station-card">
-              <p className="station-card__title">Readiness</p>
-              <div className="station-grid">
-                <div className="station-tile">
-                  <p className="station-tile__title">Units Ready</p>
-                  <p className="muted">
-                    {stationSummary?.statusCounts?.available || 0} available
-                  </p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.enroute || 0} enroute
-                  </span>
+      {/* 2. Quick Stats Bar */}
+      <div className="station-stats-grid" style={{ marginBottom: '12px' }}>
+        <StatItem label="Fleet" value={`${vehicles.length}/${station?.garageCapacity || 3}`} />
+        <StatItem label="Personnel" value={`${personnelAssigned}/${personnelCapacity}`} />
+        <StatItem label="Efficiency" value={`${Math.round((station?.responseBonus || 0) * 100)}%`} />
+        <StatItem label="Radius" value={`${station?.operationRadiusKm || 0}km`} />
+      </div>
+
+      {/* 3. Navigation Tabs */}
+      <div className="tabs tabs--inner" style={{ marginBottom: '16px' }}>
+        <button className={`tab ${stationPanelTab === 'overview' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('overview')}>Overview</button>
+        <button className={`tab ${stationPanelTab === 'vehicles' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('vehicles')}>Fleet</button>
+        <button className={`tab ${stationPanelTab === 'staffing' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('staffing')}>Personnel</button>
+        {isPolice && <button className={`tab ${stationPanelTab === 'detention' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('detention')}>Detention</button>}
+        <button className={`tab ${stationPanelTab === 'extensions' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('extensions')}>Upgrades</button>
+      </div>
+
+      {/* 4. Content Area */}
+      <div className="list-container station-content" style={{ padding: '0' }}>
+        {stationPanelTab === 'overview' && (
+          <div className="department-module">
+            {/* Left Column: Department Specific */}
+            <div style={{ display: 'grid', gap: '16px' }}>
+              {isPolice && (
+                <ModuleCard title="Booking & Detention" action={<button className="cmd-btn cmd-btn--small" onClick={onTransferDetention}>Transfer</button>}>
+                  <div className="station-kpi">
+                    <p className="station-kpi__label">Short-term Cells</p>
+                    <p className="station-kpi__value">{station?.jailCount || 0} / {station?.jailCapacity || 4}</p>
+                  </div>
+                  <div className="station-list station-list--compact" style={{ marginTop: '8px' }}>
+                    {station?.detentionLog?.slice(0, 3).map(log => (
+                      <div key={log.id} className="station-list__row">
+                        <span>{log.type}</span>
+                        <span className="muted">{log.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </ModuleCard>
+              )}
+
+              {isFire && (
+                <ModuleCard title="Fireground Command">
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div className="station-kpi">
+                      <p className="station-kpi__label">Active Hydrants in Range</p>
+                      <p className="station-kpi__value">12</p>
+                    </div>
+                    <div className="station-kpi">
+                      <p className="station-kpi__label">Water Reserve</p>
+                      <p className="station-kpi__value">100%</p>
+                    </div>
+                  </div>
+                </ModuleCard>
+              )}
+
+              {isEms && (
+                <ModuleCard title="Triage Center">
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div className="station-kpi">
+                      <p className="station-kpi__label">Critical Transports</p>
+                      <p className="station-kpi__value">0</p>
+                    </div>
+                    <div className="station-kpi">
+                      <p className="station-kpi__label">Medical Supplies</p>
+                      <p className="station-kpi__value">Stocked</p>
+                    </div>
+                  </div>
+                </ModuleCard>
+              )}
+
+              {isPW && (
+                <ModuleCard title="City Infrastructure">
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <div className="station-kpi">
+                      <p className="station-kpi__label">Grid Status</p>
+                      <p className="station-kpi__value">Stable</p>
+                    </div>
+                    <div className="station-kpi">
+                      <p className="station-kpi__label">Material Stockpile</p>
+                      <p className="station-kpi__value">94%</p>
+                    </div>
+                  </div>
+                </ModuleCard>
+              )}
+
+              <ModuleCard title="Procurement">
+                <div className="procurement-row">
+                  {availableUnits?.map((unit) => (
+                    <div key={unit.id} className="procurement-btn" onClick={() => handleBuyVehicle(unit.id)}>
+                      <span className="procurement-btn__label">{unit.label}</span>
+                      <span className="procurement-btn__cost">${unitTypes[unit.id]?.cost ?? unit.cost}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="station-tile">
-                  <p className="station-tile__title">Active Calls</p>
-                  <p className="muted">{stationSummary?.nearbyIncidents || 0} in coverage</p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.on_scene || 0} on scene
-                  </span>
-                </div>
-              </div>
+              </ModuleCard>
             </div>
-            <div className="station-card">
-              <p className="station-card__title">Staffing</p>
-              <div className="station-grid">
-                <div className="station-tile">
-                  <p className="station-tile__title">Crew Availability</p>
-                  <p className="muted">
-                    {personnelAssigned} / {personnelCapacity} assigned
-                  </p>
-                  <span className="station-tag">
-                    {vehicles.length} units in fleet
-                  </span>
+
+            {/* Right Column: General Ops */}
+            <div style={{ display: 'grid', gap: '16px' }}>
+              <ModuleCard title="Operations Status">
+                <div className="station-grid">
+                  <div className="station-tile">
+                    <p className="station-tile__title">Active Calls</p>
+                    <p className="muted">{stationSummary?.nearbyIncidents || 0} in sector</p>
+                  </div>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Unit Utilization</p>
+                    <p className="muted">{activeVehicles} responding</p>
+                  </div>
                 </div>
-                <div className="station-tile">
-                  <p className="station-tile__title">Response Boost</p>
-                  <p className="muted">HQ bonus {Math.round((station?.responseBonus || 0) * 100)}%</p>
-                  <span className="station-tag">
-                    Training {Math.round((station?.trainingBonus || 0) * 100)}%
-                  </span>
+              </ModuleCard>
+
+              <ModuleCard title="Facility Management">
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleGarageUpgrade}>Expand Garage (${garageUpgradeCost})</button>
+                  <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleHQUpgrade}>Upgrade Station HQ (${hqUpgradeCost})</button>
+                  <button className="cmd-btn cmd-btn--urgent cmd-btn--small" style={{ marginTop: '8px' }} onClick={() => {
+                    if (window.confirm(`Decommission ${station.name}?`)) onDeleteStation()
+                  }}>Decommission Station</button>
                 </div>
-              </div>
+              </ModuleCard>
             </div>
           </div>
-          {isPolice ? (
-            <div className="station-card">
-              <p className="station-card__title">Detention</p>
-              <div className="station-grid">
-                <div className="station-tile">
-                  <p className="station-tile__title">Cells</p>
-                  <p className="muted">
-                    {station?.jailCount || 0} / {station?.jailCapacity || 0} occupied
-                  </p>
-                  {station?.jailCapacity && (station?.jailCount || 0) >= station.jailCapacity && (
-                    <span className="station-tag station-tag--alert">Cells full</span>
-                  )}
-                </div>
-                <div className="station-tile">
-                  <p className="station-tile__title">Prison Capacity</p>
-                  <p className="muted">
-                    {prisonSummary?.totalCapacity
-                      ? `${prisonSummary.totalCount} / ${prisonSummary.totalCapacity} occupied`
-                      : 'No prison facilities'}
-                  </p>
-                  {prisonSummary?.totalCapacity > 0 && prisonSummary.available <= 0 && (
-                    <span className="station-tag station-tag--alert">Prison full</span>
-                  )}
-                </div>
-              </div>
-              <div className="station-list station-list--compact">
-                <p className="muted">Recent intakes</p>
-                {station?.detentionLog?.length ? (
-                  station.detentionLog.slice(0, 4).map((entry) => (
-                    <div key={entry.id} className="station-list__row">
-                      <span>{entry.type}</span>
-                      <span className="muted">
-                        {entry.destination === 'prison' ? 'Prison' : 'Cells'} - {entry.time}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="muted">No detainees booked yet.</p>
-                )}
-              </div>
-            </div>
-          ) : isFire ? (
-            <div className="station-card">
-              <p className="station-card__title">Fireground Status</p>
-              <div className="station-grid">
-                <div className="station-tile">
-                  <p className="station-tile__title">Coverage Calls</p>
-                  <p className="muted">{stationSummary?.nearbyIncidents || 0} in coverage</p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.enroute || 0} enroute
-                  </span>
-                </div>
-                <div className="station-tile">
-                  <p className="station-tile__title">Units On Scene</p>
-                  <p className="muted">{stationSummary?.statusCounts?.on_scene || 0} active</p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.available || 0} available
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : isEms ? (
-            <div className="station-card">
-              <p className="station-card__title">Medical Operations</p>
-              <div className="station-grid">
-                <div className="station-tile">
-                  <p className="station-tile__title">Medical Calls</p>
-                  <p className="muted">{stationSummary?.nearbyIncidents || 0} in coverage</p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.enroute || 0} responding
-                  </span>
-                </div>
-                <div className="station-tile">
-                  <p className="station-tile__title">Patient Care</p>
-                  <p className="muted">{stationSummary?.statusCounts?.on_scene || 0} on scene</p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.available || 0} units available
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="station-card">
-              <p className="station-card__title">Recovery Operations</p>
-              <div className="station-grid">
-                <div className="station-tile">
-                  <p className="station-tile__title">Roadside Queue</p>
-                  <p className="muted">{stationSummary?.nearbyIncidents || 0} active requests</p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.enroute || 0} enroute
-                  </span>
-                </div>
-                <div className="station-tile">
-                  <p className="station-tile__title">Recovery Progress</p>
-                  <p className="muted">{stationSummary?.statusCounts?.on_scene || 0} at scene</p>
-                  <span className="station-tag">
-                    {stationSummary?.statusCounts?.available || 0} trucks available
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+        )}
 
-      {stationPanelTab === 'vehicles' && (
-        <>
-          <div className="section-title">Fleet Status</div>
+        {stationPanelTab === 'vehicles' && (
           <FleetPanel
             vehicles={vehicles}
             formatSeconds={formatSeconds}
@@ -394,273 +253,140 @@ const StationPanel = ({
             onReleaseCrew={onReleaseCrew}
             unitTypes={unitTypes}
           />
-        </>
-      )}
+        )}
 
-      {stationPanelTab === 'staffing' && (
-        <>
-          <div className="section-title">Shift Schedule</div>
-          <div className="station-tab-grid station-tab-grid--staffing">
-            <div className="station-card">
-              <div className="station-action-row station-action-row--spaced">
-                <div>
-                  <p className="station-card__title">Coverage</p>
-                  <p className="muted">
-                    Choose when this station is staffed (local time).
-                  </p>
+        {stationPanelTab === 'staffing' && (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <ModuleCard title="Recruitment Center">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p className="muted">Total Personnel: {personnelAssigned} / {personnelCapacity}</p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="cmd-btn cmd-btn--small" onClick={onHirePersonnel} disabled={personnelAssigned >= personnelCapacity}>Hire (${personnelHireCost})</button>
+                  <button className="cmd-btn cmd-btn--small" onClick={onUpgradePersonnel}>Expand (${personnelUpgradeCost})</button>
                 </div>
+              </div>
+            </ModuleCard>
+
+            <StaffRoster
+              crewMembers={station.crewMembers || []}
+              vehicles={vehicles}
+              onAssign={onAssignCrewMember}
+              onUnassign={onUnassignCrewMember}
+              departmentId={departmentId}
+            />
+
+            <div className="department-module">
+              <ModuleCard title="Shift Schedule">
                 <select
-                  className="station-input"
+                  className="cmd-select"
                   value={station?.shiftPreset || '24_7'}
                   onChange={(event) => onUpdateShiftPreset?.(event.target.value)}
+                  style={{ width: '100%' }}
                 >
-                  <option value="24_7">24/7 Coverage</option>
+                  <option value="24_7">24/7 Full Coverage</option>
                   <option value="day">Day Shift (08:00-20:00)</option>
                   <option value="night">Night Shift (20:00-08:00)</option>
                 </select>
-              </div>
-              <p className="muted">
-                Off-duty units return to station until the next shift.
-              </p>
-            </div>
+              </ModuleCard>
 
-            <div className="station-card">
-              <p className="station-card__title">Minimum On-Duty Units</p>
-              <div className="station-action-row station-action-row--spaced">
-                <label className="muted">
-                  Day shift
-                  <input
-                    className="station-input"
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={station?.minOnDutyDay ?? 1}
-                    onChange={(event) => onUpdateMinOnDuty?.('minOnDutyDay', event.target.value)}
-                  />
-                </label>
-                <label className="muted">
-                  Night shift
-                  <input
-                    className="station-input"
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={station?.minOnDutyNight ?? 1}
-                    onChange={(event) => onUpdateMinOnDuty?.('minOnDutyNight', event.target.value)}
-                  />
-                </label>
-              </div>
-              <p className="muted">Stations will auto-activate this many units when on duty.</p>
+              <ModuleCard title="Minimum Deployment">
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <label className="muted">Day: <input className="cmd-select" type="number" value={station?.minOnDutyDay ?? 1} onChange={(e) => onUpdateMinOnDuty?.('minOnDutyDay', e.target.value)} style={{ width: '50px' }} /></label>
+                  <label className="muted">Night: <input className="cmd-select" type="number" value={station?.minOnDutyNight ?? 1} onChange={(e) => onUpdateMinOnDuty?.('minOnDutyNight', e.target.value)} style={{ width: '50px' }} /></label>
+                </div>
+              </ModuleCard>
             </div>
           </div>
+        )}
 
-          <div className="section-title">Personnel Roster</div>
-          <div className="station-card">
-            <div className="station-action-row station-action-row--spaced">
-              <div>
-                <p className="muted">Assigned: {personnelAssigned} / {personnelCapacity}</p>
-                <p className="muted">Crew units to unlock dispatch.</p>
-              </div>
-              <div className="station-action-row">
-                <button
-                  className="btn btn--small"
-                  onClick={onHirePersonnel}
-                  disabled={personnelAssigned >= personnelCapacity}
-                >
-                  Hire (${personnelHireCost})
-                </button>
-                <button className="btn btn--small" onClick={onUpgradePersonnel}>
-                  Expand (${personnelUpgradeCost})
-                </button>
-              </div>
-            </div>
-            <div className="station-grid">
-              <div className="station-tile station-tile--disabled">
-                <p className="station-tile__title">{staffingPrimaryLabel}</p>
-                <p className="muted">0 assigned - Hire personnel to crew units.</p>
-                <span className="station-tag station-tag--disabled">Coming soon</span>
-              </div>
-              <div className="station-tile station-tile--disabled">
-                <p className="station-tile__title">{staffingSecondaryLabel}</p>
-                <p className="muted">0 assigned - Improves response efficiency.</p>
-                <span className="station-tag station-tag--disabled">Coming soon</span>
-              </div>
-              <div className="station-tile station-tile--disabled">
-                <p className="station-tile__title">{staffingThirdLabel}</p>
-                <p className="muted">0 assigned - Required for high-risk calls.</p>
-                <span className="station-tag station-tag--disabled">Coming soon</span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-
-      {isPolice && stationPanelTab === 'detention' && (
-        <>
-          <div className="section-title">Detention Operations</div>
-          <div className="station-card">
-            <div className="station-action-row station-action-row--spaced">
-              <div>
-                <p className="station-card__title">Capacity Status</p>
-                <p className="muted">
-                  Cells {station?.jailCount || 0}/{station?.jailCapacity || 0} - Prison{' '}
-                  {prisonSummary?.totalCapacity
-                    ? `${prisonSummary.totalCount}/${prisonSummary.totalCapacity}`
-                    : 'None'}
-                </p>
-              </div>
-              {prisonSummary?.available > 0 &&
-                (station?.jailCapacity || 0) > 0 &&
-                (station?.jailCount || 0) >= station.jailCapacity &&
-                (
-                  <button className="btn btn--small" onClick={onTransferDetention}>
-                    Transfer to Prison
-                  </button>
-                )}
-            </div>
-            {station?.jailCapacity &&
-              (station?.jailCount || 0) >= station.jailCapacity && (
-                <span className="station-tag station-tag--alert">Cells at capacity</span>
-              )}
-            {prisonSummary?.totalCapacity > 0 && prisonSummary.available <= 0 && (
-              <span className="station-tag station-tag--alert">Prison at capacity</span>
-            )}
-          </div>
-          <div className="station-card">
-            <p className="station-card__title">Detention History</p>
-            <div className="station-list">
-              {station?.detentionLog?.length ? (
-                station.detentionLog.map((entry) => (
-                  <div key={entry.id} className="station-list__row">
-                    <span>{entry.type}</span>
-                    <span className="muted">
-                      {entry.destination === 'prison' ? 'Prison' : 'Cells'} - {entry.time}
-                    </span>
+        {stationPanelTab === 'extensions' && (
+          <div className="department-module">
+            <ModuleCard title="Technical Upgrades">
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div className="station-tile">
+                  <p className="station-tile__title">Training Academy</p>
+                  <p className="muted">Reduces fatigue accumulation for all stationed units.</p>
+                  <button className="cmd-btn cmd-btn--small" onClick={onTrainingUpgrade}>Upgrade (${trainingUpgradeCost})</button>
+                </div>
+                {isPolice && (
+                  <div className="station-tile">
+                    <p className="station-tile__title">K-9 Kennel</p>
+                    <p className="muted">Houses K-9 units for search and rescue operations.</p>
+                    {station.hasKennel ? (
+                      <button className="cmd-btn cmd-btn--small" disabled style={{ opacity: 0.7 }}>ACTIVE</button>
+                    ) : (
+                      <button className="cmd-btn cmd-btn--small" onClick={onKennelUpgrade}>Construct (${kennelUpgradeCost})</button>
+                    )}
                   </div>
-                ))
-              ) : (
-                <p className="muted">No detention records yet.</p>
+                )}
+                {isFire && (
+                  <div className="station-tile">
+                    <p className="station-tile__title">Apparatus Refit Bay</p>
+                    <p className="muted">Reduces turnaround (cooldown) time by 20%.</p>
+                    <button className="cmd-btn cmd-btn--small" disabled>UPGRADED</button>
+                  </div>
+                )}
+                {isEms && (
+                  <div className="station-tile">
+                    <p className="station-tile__title">Med-Link Telemetry</p>
+                    <p className="muted">Increases resolution rewards by 10%.</p>
+                    <button className="cmd-btn cmd-btn--small" disabled>ACTIVE</button>
+                  </div>
+                )}
+                {isTow && (
+                  <div className="station-tile">
+                    <p className="station-tile__title">Heavy Lift Cert</p>
+                    <p className="muted">Unlocks specialized recovery equipment.</p>
+                    <button className="cmd-btn cmd-btn--small" disabled>CERTIFIED</button>
+                  </div>
+                )}
+              </div>
+            </ModuleCard>
+            <ModuleCard title="Operational Perks">
+              {isPolice && (
+                <div style={{ display: 'grid', gap: '4px' }}>
+                  <span className="status-badge" style={{ borderColor: 'var(--color-police)', color: 'var(--color-police)' }}>Traffic Unit</span>
+                  <p className="muted" style={{ fontSize: '0.65rem' }}>
+                    {progression.trafficUnitUnlocked
+                      ? 'STATION AUTHORIZED'
+                      : `Resolve ${PROGRESSION_MILESTONES.trafficUnitUnlockedAt} calls to unlock`}
+                  </p>
+                </div>
               )}
-            </div>
+              {isFire && (
+                <div style={{ display: 'grid', gap: '4px' }}>
+                  <span className="status-badge" style={{ borderColor: 'var(--color-fire)', color: 'var(--color-fire)' }}>Ladder Company</span>
+                  <p className="muted" style={{ fontSize: '0.65rem' }}>
+                    {progression.fireRescueUnlocked
+                      ? 'UNIT UNLOCKED'
+                      : `Resolve ${PROGRESSION_MILESTONES.fireRescueUnlockedAt} fire calls`}
+                  </p>
+                </div>
+              )}
+              {isEms && (
+                <div style={{ display: 'grid', gap: '4px' }}>
+                  <span className="status-badge" style={{ borderColor: 'var(--color-ems)', color: 'var(--color-ems)' }}>ALS Care</span>
+                  <p className="muted" style={{ fontSize: '0.65rem' }}>
+                    {progression.emsAdvancedCareUnlocked
+                      ? 'CERTIFIED'
+                      : `Resolve ${PROGRESSION_MILESTONES.emsAdvancedCareUnlockedAt} EMS calls`}
+                  </p>
+                </div>
+              )}
+              {isTow && (
+                <div style={{ display: 'grid', gap: '4px' }}>
+                  <span className="status-badge" style={{ borderColor: 'var(--color-tow)', color: 'var(--color-tow)' }}>Impound Lot</span>
+                  <p className="muted" style={{ fontSize: '0.65rem' }}>
+                    {progression.towHeavyRecoveryUnlocked
+                      ? 'REVENUE ACTIVE'
+                      : `Resolve ${PROGRESSION_MILESTONES.towHeavyRecoveryUnlockedAt} tow calls`}
+                  </p>
+                </div>
+              )}
+            </ModuleCard>
           </div>
-        </>
-      )}
-
-      {stationPanelTab === 'extensions' && (
-        <div className="station-card">
-          <p className="station-card__title">Extensions</p>
-          <div className="station-grid">
-            <div className="station-tile">
-              <p className="station-tile__title">Garage Expansion</p>
-              <p className="muted">Adds 2 parking bays.</p>
-              <div className="station-action-row">
-                <button className="btn btn--small" onClick={handleGarageUpgrade}>
-                  Upgrade (${garageUpgradeCost})
-                </button>
-              </div>
-            </div>
-            <div className="station-tile">
-              <p className="station-tile__title">HQ Upgrade</p>
-              <p className="muted">Boosts response speed by 5%.</p>
-              <div className="station-action-row">
-                <button className="btn btn--small" onClick={handleHQUpgrade}>
-                  Upgrade (${hqUpgradeCost})
-                </button>
-              </div>
-            </div>
-            <div className="station-tile">
-              <p className="station-tile__title">Training Program</p>
-              <p className="muted">Reduces fatigue buildup for this station.</p>
-              <div className="station-action-row">
-                <button className="btn btn--small" onClick={onTrainingUpgrade}>
-                  Upgrade (${trainingUpgradeCost})
-                </button>
-              </div>
-            </div>
-            <div className="station-tile">
-              <p className="station-tile__title">Regional Outpost</p>
-              <p className="muted">Add a secondary station.</p>
-              <span className="station-tag">Requires Level 5</span>
-            </div>
-            {isPolice && (
-              <div className="station-tile">
-                <p className="station-tile__title">Traffic Unit</p>
-                <p className="muted">Unlock traffic response vehicle.</p>
-                <span className="station-tag">
-                  {progression.trafficUnitUnlocked ? 'Unlocked' : 'Resolve 3 calls'}
-                </span>
-              </div>
-            )}
-            {isFire && (
-              <div className="station-tile">
-                <p className="station-tile__title">Ladder Company</p>
-                <p className="muted">Adds vertical rescue capability.</p>
-                <span className="station-tag">
-                  {progression.fireRescueUnlocked ? 'Unlocked' : 'Resolve 4 fire calls'}
-                </span>
-              </div>
-            )}
-            {isEms && (
-              <div className="station-tile">
-                <p className="station-tile__title">ALS Response Unit</p>
-                <p className="muted">Improves response for critical medical calls.</p>
-                <span className="station-tag">
-                  {progression.emsAdvancedCareUnlocked ? 'Unlocked' : 'Resolve 4 EMS calls'}
-                </span>
-              </div>
-            )}
-            {isTow && (
-              <div className="station-tile">
-                <p className="station-tile__title">Heavy Wrecker Bay</p>
-                <p className="muted">Supports large vehicle and trailer recoveries.</p>
-                <span className="station-tag">
-                  {progression.towHeavyRecoveryUnlocked ? 'Unlocked' : 'Resolve 4 tow calls'}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {stationPanelTab === 'complex' && (
-        <div className="station-card">
-          <p className="station-card__title">Building Complex</p>
-          <div className="station-grid">
-            <div className="station-tile station-tile--alert">
-              <p className="station-tile__title">Upgrade HQ to Complex Base</p>
-              <p className="muted">Requires station level 5.</p>
-              <span className="station-tag">
-                {progression.precinctUpgradeUnlocked ? 'Ready to build' : 'Resolve 8 calls'}
-              </span>
-            </div>
-            <div className="station-tile station-tile--alert">
-              <p className="station-tile__title">Add New Wing</p>
-              <p className="muted">Requires station level 7.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {stationPanelTab === 'storage' && (
-        <div className="station-card">
-          <p className="station-card__title">Storage</p>
-          <p className="muted">
-            Equipment, evidence lockers, and supply inventory will appear here.
-          </p>
-          <div className="station-pill-row">
-            {isPolice && <span className="station-pill">Evidence: 0</span>}
-            {isFire && <span className="station-pill">Hose Packs: 12</span>}
-            {isFire && <span className="station-pill">SCBA Sets: 8</span>}
-            {isEms && <span className="station-pill">Trauma Kits: 6</span>}
-            {isEms && <span className="station-pill">Oxygen Cylinders: 14</span>}
-            {isTow && <span className="station-pill">Recovery Gear: 10</span>}
-            {isTow && <span className="station-pill">Tow Straps: 18</span>}
-            {!isPolice && !isFire && !isEms && !isTow && <span className="station-pill">Field Supplies: 10</span>}
-            <span className="station-pill">Medical Kits: 4</span>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

@@ -1,3 +1,6 @@
+import React from 'react'
+import '../Theme.css'
+
 const formatAmount = (amount) => {
   const abs = Math.abs(amount).toLocaleString()
   return amount >= 0 ? `+$${abs}` : `-$${abs}`
@@ -13,131 +16,88 @@ const summarizeByLabel = (entries) => {
     .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
 }
 
-const CashLedger = ({ transactions, onClose, budgetSummary }) => {
+const CashLedger = ({ transactions = [], budgetSummary }) => {
   const income = transactions.filter((entry) => entry.amount > 0)
   const expenses = transactions.filter((entry) => entry.amount < 0)
   const totalIncome = income.reduce((sum, entry) => sum + entry.amount, 0)
   const totalExpenses = expenses.reduce((sum, entry) => sum + entry.amount, 0)
   const net = totalIncome + totalExpenses
-  const topExpenseSources = summarizeByLabel(expenses).slice(0, 4)
   const topIncomeSources = summarizeByLabel(income).slice(0, 4)
 
   return (
-    <aside className="panel ledger">
-      <div className="ledger__header">
-        <div>
-          <p className="eyebrow">Cash Ledger</p>
-          <p className="muted">Income and expenses overview</p>
+    <div className="cmd-content" style={{ height: '100%', overflowY: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', textAlign: 'center' }}>
+            <p className="label" style={{ fontSize: '0.55rem' }}>INCOME</p>
+            <p style={{ color: 'var(--color-success)', fontFamily: 'var(--font-display)', fontSize: '1.2rem', margin: 0 }}>{formatAmount(totalIncome)}</p>
+          </div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', textAlign: 'center' }}>
+            <p className="label" style={{ fontSize: '0.55rem' }}>EXPENSES</p>
+            <p style={{ color: 'var(--color-urgent)', fontFamily: 'var(--font-display)', fontSize: '1.2rem', margin: 0 }}>{formatAmount(totalExpenses)}</p>
+          </div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', textAlign: 'center' }}>
+            <p className="label" style={{ fontSize: '0.55rem' }}>NET OPERATING</p>
+            <p style={{ color: net >= 0 ? 'var(--color-success)' : 'var(--color-urgent)', fontFamily: 'var(--font-display)', fontSize: '1.2rem', margin: 0 }}>{formatAmount(net)}</p>
+          </div>
         </div>
-        <button className="btn btn--ghost btn--small" onClick={onClose}>
-          Close
-        </button>
-      </div>
-      <div className="ledger__summary">
-        <div>
-          <p className="label">Income</p>
-          <p className="value ledger__amount--pos">{formatAmount(totalIncome)}</p>
-        </div>
-        <div>
-          <p className="label">Expenses</p>
-          <p className="value ledger__amount--neg">{formatAmount(totalExpenses)}</p>
-        </div>
-        <div>
-          <p className="label">Net</p>
-          <p className={`value ${net >= 0 ? 'ledger__amount--pos' : 'ledger__amount--neg'}`}>
-            {formatAmount(net)}
-          </p>
-        </div>
-      </div>
-      <div className="ledger__grid">
-        <div className="ledger__block">
-          <p className="station-card__title">Top Expenses</p>
-          {topExpenseSources.length === 0 && <p className="muted">No expenses yet.</p>}
-          {topExpenseSources.map((entry) => (
-            <div key={entry.label} className="ledger__mini">
-              <span>{entry.label}</span>
-              <span className="ledger__amount ledger__amount--neg">
-                {formatAmount(entry.amount)}
-              </span>
+
+        <div className="department-module" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="module-card">
+            <h3 className="module-card__title">BUDGET ALLOCATION (PER MIN)</h3>
+            {budgetSummary ? (
+              <div style={{ display: 'grid', gap: '6px', fontSize: '0.7rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="muted">Units</span>
+                  <span style={{ color: 'var(--color-urgent)' }}>{formatAmount(-budgetSummary.unitPerMin)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="muted">Personnel</span>
+                  <span style={{ color: 'var(--color-urgent)' }}>{formatAmount(-budgetSummary.personnelPerMin)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="muted">Facilities</span>
+                  <span style={{ color: 'var(--color-urgent)' }}>{formatAmount(-budgetSummary.stationPerMin)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '4px', marginTop: '4px' }}>
+                  <span>Projected Hourly</span>
+                  <span style={{ color: 'var(--color-urgent)' }}>{formatAmount(-budgetSummary.totalPerMin * 60)}</span>
+                </div>
+              </div>
+            ) : <p className="muted">No data.</p>}
+          </div>
+
+          <div className="module-card">
+            <h3 className="module-card__title">REVENUE SOURCES</h3>
+            <div style={{ display: 'grid', gap: '6px', fontSize: '0.7rem' }}>
+              {topIncomeSources.map(entry => (
+                <div key={entry.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="muted" style={{ maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.label}</span>
+                  <span style={{ color: 'var(--color-success)' }}>{formatAmount(entry.amount)}</span>
+                </div>
+              ))}
+              {topIncomeSources.length === 0 && <p className="muted">Pending receipts...</p>}
             </div>
-          ))}
+          </div>
         </div>
-        {budgetSummary && (
-          <div className="ledger__block">
-            <p className="station-card__title">Budget Report</p>
-            <div className="ledger__mini">
-              <span>Unit upkeep / min</span>
-              <span className="ledger__amount ledger__amount--neg">
-                {formatAmount(-budgetSummary.unitPerMin)}
-              </span>
-            </div>
-            {budgetSummary.unitTypes.map((entry) => (
-              <div key={`unit-${entry.type}`} className="ledger__mini">
-                <span>
-                  {entry.type[0].toUpperCase() + entry.type.slice(1)} ({entry.count})
-                </span>
-                <span className="ledger__amount ledger__amount--neg">
-                  {formatAmount(-entry.costPerMin)}
+
+        <div className="module-card" style={{ marginTop: '12px' }}>
+          <h3 className="module-card__title">TRANSACTION LOG</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
+            {transactions.slice(0, 20).map(entry => (
+              <div key={entry.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.1)', padding: '6px 8px', borderRadius: '4px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#fff' }}>{entry.label}</span>
+                  <span className="muted" style={{ fontSize: '0.55rem' }}>{entry.time}</span>
+                </div>
+                <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-display)', color: entry.amount >= 0 ? 'var(--color-success)' : 'var(--color-urgent)' }}>
+                  {formatAmount(entry.amount)}
                 </span>
               </div>
             ))}
-            <div className="ledger__mini">
-              <span>Personnel / min</span>
-              <span className="ledger__amount ledger__amount--neg">
-                {formatAmount(-budgetSummary.personnelPerMin)}
-              </span>
-            </div>
-            <div className="ledger__mini">
-              <span>Stations / min</span>
-              <span className="ledger__amount ledger__amount--neg">
-                {formatAmount(-budgetSummary.stationPerMin)}
-              </span>
-            </div>
-            <div className="ledger__mini">
-              <span>Overtime / min ({budgetSummary.overtimeCount})</span>
-              <span className="ledger__amount ledger__amount--neg">
-                {formatAmount(-budgetSummary.overtimePerMin)}
-              </span>
-            </div>
-            <div className="ledger__mini">
-              <span>Projected / hour</span>
-              <span className="ledger__amount ledger__amount--neg">
-                {formatAmount(-budgetSummary.totalPerMin * 60)}
-              </span>
-            </div>
+            {transactions.length === 0 && <p className="muted" style={{ textAlign: 'center', padding: '10px' }}>LOG EMPTY</p>}
           </div>
-        )}
-        <div className="ledger__block">
-          <p className="station-card__title">Top Income</p>
-          {topIncomeSources.length === 0 && <p className="muted">No income yet.</p>}
-          {topIncomeSources.map((entry) => (
-            <div key={entry.label} className="ledger__mini">
-              <span>{entry.label}</span>
-              <span className="ledger__amount ledger__amount--pos">
-                {formatAmount(entry.amount)}
-              </span>
-            </div>
-          ))}
         </div>
-      </div>
-      <div className="ledger__list">
-        <p className="station-card__title">Latest Transactions</p>
-        {transactions.length === 0 && <p className="muted">No transactions yet.</p>}
-        {transactions.map((entry) => (
-          <div key={entry.id} className="ledger__item">
-            <div>
-              <p className="title">{entry.label}</p>
-              <p className="muted">{entry.time}</p>
-            </div>
-            <span
-              className={`ledger__amount ${entry.amount >= 0 ? 'ledger__amount--pos' : 'ledger__amount--neg'}`}
-            >
-              {formatAmount(entry.amount)}
-            </span>
-          </div>
-        ))}
-      </div>
-    </aside>
+    </div>
   )
 }
 

@@ -18,6 +18,7 @@ export const calculateIncidentResolution = ({
   now,
   fallbackPriorityConfig,
   rewardMultiplier = 1,
+  unlockedTech = [],
 }) => {
   const priorityConfig = fallbackPriorityConfig
   const responseSeconds = incident
@@ -32,21 +33,35 @@ export const calculateIncidentResolution = ({
   else if (ratio <= GRADE_THRESHOLDS.good) grade = 'good'
   else if (ratio <= GRADE_THRESHOLDS.late) grade = 'late'
 
-  const gradeConfig = GRADE_MULTIPLIERS[grade]
+  const gradeConfig = { ...GRADE_MULTIPLIERS[grade] }
+  
+  if (unlockedTech.includes('body_cams') && gradeConfig.trust > 0) {
+    gradeConfig.trust = Math.round(gradeConfig.trust * 1.2)
+  }
+
   const performance = clamp(1.2 - ratio * 0.5, 0.4, 1.2)
   const trustMultiplier = clamp(0.85 + publicTrust / 200, 0.8, 1.35)
+  
+  // Advanced Crew: Skill bonus (up to 15% increase)
+  const skillBonus = 1 + (incident.crewSkillBonus || 0)
+  
   const reward = Math.round(
-    priorityConfig.reward * performance * gradeConfig.reward * trustMultiplier * rewardMultiplier
+    priorityConfig.reward * performance * gradeConfig.reward * trustMultiplier * rewardMultiplier * skillBonus
   )
 
   const existingCaseScore = Number(incident?.caseScore) || 0
-  const evidenceGain = Math.max(
+  let evidenceGain = Math.max(
     1,
-    Math.round((priorityConfig.reward / 40) * gradeConfig.reward * performance)
+    Math.round((priorityConfig.reward / 40) * gradeConfig.reward * performance * skillBonus)
   )
+  if (unlockedTech.includes('forensic_suite')) {
+    evidenceGain = Math.round(evidenceGain * 1.15)
+  }
+
   const evidencePenalty = grade === 'poor' ? Math.round(priorityConfig.reward / 120) : 0
   const evidenceDelta = Math.max(0, evidenceGain - evidencePenalty)
   const nextCaseScore = clamp(existingCaseScore + evidenceDelta, 0, 999)
+  const xpGain = gradeConfig.reward * 50 // Base XP scaler
 
   return {
     grade,
@@ -55,6 +70,7 @@ export const calculateIncidentResolution = ({
     reward,
     evidenceDelta,
     nextCaseScore,
+    xpGain,
   }
 }
 
@@ -279,8 +295,9 @@ export const calculateRouteProgressUpdate = ({
   simSpeedMultiplier,
 }) => {
   const speedMps = (travelSpeedKph * simSpeedMultiplier * 1000) / 3600
+  const currentProgress = Number.isFinite(vehicle.progressMeters) ? vehicle.progressMeters : 0
   const nextProgress = Math.min(
-    vehicle.progressMeters + speedMps * step,
+    currentProgress + speedMps * step,
     vehicle.routeData.totalDistance
   )
   const nextPosition = positionFromProgress(vehicle.routeData, nextProgress)
@@ -305,25 +322,50 @@ export const createOnSceneArrivalPatch = ({
   vehicleId,
   arrivedAt,
   onSceneSeconds,
+  vehicles = [],
 }) => {
+  const normalizeDept = (dept) => dept || 'police'
   const requiredUnits = Math.max(1, Number(incidentRecord?.requiredUnits) || 1)
+  const coDepts = Array.isArray(incidentRecord?.coResponseDepartments)
+    ? incidentRecord.coResponseDepartments.map(normalizeDept)
+    : []
+  const primaryDept = normalizeDept(incidentRecord?.requiredDepartment)
+  
   const currentAssigned = Array.isArray(incidentRecord?.assignedVehicleIds)
     ? incidentRecord.assignedVehicleIds
     : []
   const currentOnScene = Array.isArray(incidentRecord?.onSceneVehicleIds)
     ? incidentRecord.onSceneVehicleIds
     : []
+  
   const nextAssigned = currentAssigned.includes(vehicleId)
     ? currentAssigned
     : [...currentAssigned, vehicleId]
   const nextOnScene = currentOnScene.includes(vehicleId)
     ? currentOnScene
     : [...currentOnScene, vehicleId]
-  const onSceneReady = nextOnScene.length >= requiredUnits
+
+  // When full vehicle context is available, enforce co-response department coverage.
+  // In isolated/test calls without that context, fall back to required unit count only.
+  const hasVehicleContext = Array.isArray(vehicles) && vehicles.length > 0
+  const onSceneUnits = hasVehicleContext
+    ? vehicles.filter((vehicle) => nextOnScene.includes(vehicle.id))
+    : []
+  const representedDepts = new Set(
+    onSceneUnits.map((vehicle) => normalizeDept(vehicle.department))
+  )
+
+  const allDeptsPresent = hasVehicleContext
+    ? [primaryDept, ...coDepts].every((dept) => representedDepts.has(dept))
+    : true
+  const enoughUnits = nextOnScene.length >= requiredUnits
+  
+  const onSceneReady = enoughUnits && allDeptsPresent
 
   return {
     patch: {
       status: onSceneReady ? INCIDENT_STATUS.on_scene : INCIDENT_STATUS.responding,
+      stageLabel: onSceneReady ? 'ACTIVE RESOLUTION' : 'AWAITING CO-RESPONSE',
       assignedVehicleId: nextAssigned[0] || incidentRecord?.assignedVehicleId || null,
       assignedVehicleIds: nextAssigned,
       etaSeconds: 0,
