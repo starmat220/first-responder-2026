@@ -1600,8 +1600,29 @@
   accent-color: #5ea9ff;
 }
 
+.settings-row--actions {
+  align-items: flex-start;
+}
+
+.settings-row--actions .cmd-btn {
+  align-self: center;
+  white-space: nowrap;
+}
+
 .settings-note {
   margin: 0;
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  border-radius: 10px;
+  border: 1px solid rgba(130, 161, 198, 0.28);
+  background: rgba(7, 12, 20, 0.84);
+  color: #d8e7ff;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  padding: 8px 10px;
 }
 
 .case-note__delta {

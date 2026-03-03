@@ -403,6 +403,10 @@ export const fetchLiveWeatherForPosition = async (
       condition,
       intensity,
       temperatureC: Math.round(metrics.temperatureC * 10) / 10,
+      windSpeedKph: Math.round((Number(metrics.windSpeedKph) || 0) * 10) / 10,
+      precipitationMm: Math.round((Number(metrics.precipitationMm) || 0) * 100) / 100,
+      timezone: payload?.timezone || null,
+      timezoneAbbr: payload?.timezone_abbreviation || null,
       updatedAt: observedAt,
       nextUpdateAt: observedAt + nextUpdateMs,
     }

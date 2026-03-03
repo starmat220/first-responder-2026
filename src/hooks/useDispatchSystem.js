@@ -14,6 +14,85 @@ import { DEFAULT_DEPARTMENT_ID } from '../game/departments'
 import { clamp } from '../game/utils'
 import { haversineMeters } from '../game/geo'
 
+const isSevereWeather = (weather) =>
+  ['storm', 'blizzard', 'snow'].includes(weather?.condition) || Number(weather?.intensity || 0) >= 0.72
+
+const getPriorityRoleFit = (vehicle, incident) => {
+  const requiredType = incident?.requiredUnitType && incident.requiredUnitType !== 'any'
+    ? incident.requiredUnitType
+    : null
+  if (requiredType) {
+    return vehicle.unitType === requiredType ? 2.5 : -4
+  }
+
+  const priority = Number(incident?.priority) || 2
+  if (priority <= 1) {
+    if (vehicle.unitType === 'supervisor') return 1.2
+    if (vehicle.unitType === 'traffic') return 0.9
+    return 0.2
+  }
+  if (priority >= 3) {
+    if (vehicle.unitType === 'patrol') return 0.8
+    if (vehicle.unitType === 'supervisor') return -0.7
+    return 0.1
+  }
+  return 0.35
+}
+
+export const getDispatchCandidateScore = ({
+  vehicle,
+  incident,
+  weather,
+  bonus = 0,
+  departmentBonus = 0,
+}) => {
+  const distanceMeters = haversineMeters(vehicle.position, incident.position)
+  const speedKph = Math.max(30, Number(vehicle.speedKph) || 45)
+  const etaSeconds = distanceMeters / ((speedKph * 1000) / 3600)
+  const fatigue = clamp(Number(vehicle.fatigue) || 0, 0, 100)
+  const crewRequired = getCrewRequirement(vehicle.unitType)
+  const crewAssigned = Number(vehicle.crewAssigned) || 0
+  const crewMargin = Math.max(0, crewAssigned - crewRequired)
+
+  let score = 0
+  score -= distanceMeters / 1300
+  score -= etaSeconds / 220
+  score += getPriorityRoleFit(vehicle, incident)
+  score += Math.min(crewMargin, 3) * 1.1
+  score -= fatigue / 22
+  if (vehicle.status === VEHICLE_STATUS.available) score += 2.2
+  if (vehicle.status === VEHICLE_STATUS.returning) score += 0.8
+  if (isSevereWeather(weather) && (vehicle.unitType === 'traffic' || vehicle.unitType === 'supervisor')) {
+    score += 0.45
+  }
+  score += Number(bonus) || 0
+  score += Number(departmentBonus) || 0
+  return score
+}
+
+export const rankDispatchCandidates = ({
+  incident,
+  vehicles,
+  weather,
+  departmentDispatchModifiers = null,
+  getVehicleDispatchBonus = null,
+}) =>
+  [...(vehicles || [])]
+    .map((vehicle) => ({
+      vehicle,
+      score: getDispatchCandidateScore({
+        vehicle,
+        incident,
+        weather,
+        bonus: getVehicleDispatchBonus ? getVehicleDispatchBonus(vehicle, incident) : 0,
+        departmentBonus:
+          departmentDispatchModifiers?.[vehicle.department || DEFAULT_DEPARTMENT_ID]
+            ?.dispatchScoreBonus || 0,
+      }),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.vehicle)
+
 export const useDispatchSystem = ({
   incidentsRef,
   vehiclesRef,
@@ -28,6 +107,8 @@ export const useDispatchSystem = ({
   addRadioLogRef,
   weather,
   unlockedTech = [],
+  departmentDispatchModifiers = null,
+  getVehicleDispatchBonus = null,
 }) => {
   const pendingDispatchIdsRef = useRef(new Set())
 
@@ -107,17 +188,14 @@ export const useDispatchSystem = ({
   const getClosestEligibleVehicleId = (incident) => {
     const eligible = getEligibleVehicles(incident)
     if (!eligible.length) return null
-    let closest = eligible[0]
-    let shortest = haversineMeters(eligible[0].position, incident.position)
-    for (let i = 1; i < eligible.length; i += 1) {
-      const candidate = eligible[i]
-      const distance = haversineMeters(candidate.position, incident.position)
-      if (distance < shortest) {
-        shortest = distance
-        closest = candidate
-      }
-    }
-    return closest?.id || null
+    const ranked = rankDispatchCandidates({
+      incident,
+      vehicles: eligible,
+      weather,
+      departmentDispatchModifiers,
+      getVehicleDispatchBonus,
+    })
+    return ranked[0]?.id || null
   }
 
   const getIncidentRequirementLines = (incident) => {
@@ -173,7 +251,13 @@ export const useDispatchSystem = ({
     const neededUnits = requiredUnits - alreadyAssigned.length
     const selectionPool = [...eligibleVehicles].filter((vehicle) => !alreadyAssigned.includes(vehicle.id))
 
-    selectionPool.sort((a, b) => haversineMeters(a.position, incident.position) - haversineMeters(b.position, incident.position))
+    const rankedPool = rankDispatchCandidates({
+      incident,
+      vehicles: selectionPool,
+      weather,
+      departmentDispatchModifiers,
+      getVehicleDispatchBonus,
+    })
 
     const validDepartments = [incident.requiredDepartment || DEFAULT_DEPARTMENT_ID, ...(incident.coResponseDepartments || [])]
     const assignedDepts = alreadyAssigned.map(id => {
@@ -194,7 +278,7 @@ export const useDispatchSystem = ({
     }
 
     if (incident.coResponseDepartments?.length > 0) {
-      selectionPool.forEach((vehicle) => {
+      rankedPool.forEach((vehicle) => {
         if (chosenVehicles.length >= neededUnits) return
         if (chosenVehicles.find((item) => item.id === vehicle.id)) return
         const dept = vehicle.department || DEFAULT_DEPARTMENT_ID
@@ -206,7 +290,7 @@ export const useDispatchSystem = ({
       })
     }
 
-    selectionPool.forEach((vehicle) => {
+    rankedPool.forEach((vehicle) => {
       if (chosenVehicles.length >= neededUnits) return
       if (!chosenVehicles.find((item) => item.id === vehicle.id)) {
         chosenVehicles.push(vehicle)

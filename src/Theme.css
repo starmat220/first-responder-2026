@@ -1,29 +1,36 @@
 :root {
   /* Core Colors */
-  --color-bg-dark: #0a0f16;
-  --color-panel-bg: rgba(12, 18, 26, 0.85);
-  --color-panel-border: rgba(130, 161, 198, 0.2);
-  --color-text-main: #eef5ff;
-  --color-text-muted: #8da4bf;
-  
-  /* Department Accents */
-  --color-police: #60abff;
-  --color-fire: #ff7a65;
-  --color-ems: #ffb254;
-  --color-tow: #ffd17d;
-  --color-public_works: #a0aec0;
-  --color-urgent: #ff4757;
-  --color-success: #2ecc71;
+  --color-bg-dark: #0b0f19;
+  --color-panel-bg: rgba(10, 15, 26, 0.65);
+  --color-panel-border: rgba(96, 171, 255, 0.15);
+  --color-text-main: #f0f4f8;
+  --color-text-muted: #8a9fc2;
+
+  /* Department Accents - Enhanced Vibrancy */
+  --color-police: #3b82f6;
+  /* Vibrant Blue */
+  --color-fire: #ef4444;
+  /* Intense Red */
+  --color-ems: #f59e0b;
+  /* Deep Amber */
+  --color-tow: #eab308;
+  /* Bright Yellow */
+  --color-public_works: #94a3b8;
+  /* Slate Blue */
+  --color-urgent: #ef4444;
+  /* Fluorescent Red */
+  --color-success: #10b981;
+  /* Emerald Green */
 
   /* UI Tokens */
-  --glass-blur: blur(12px);
-  --panel-radius: 12px;
-  --panel-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glass-blur: blur(24px);
+  --panel-radius: 16px;
+  --panel-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --border-glow: 0 0 0 1px rgba(255, 255, 255, 0.08);
-  
+
   /* Typography */
-  --font-display: 'Barlow Condensed', sans-serif;
-  --font-ui: system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-ui: 'Inter', -apple-system, sans-serif;
 }
 
 /* Global Reset & Base */
@@ -31,6 +38,20 @@ body {
   background-color: var(--color-bg-dark);
   color: var(--color-text-main);
   font-family: var(--font-ui);
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--urgent-rgb, 239, 68, 68), 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(var(--urgent-rgb, 239, 68, 68), 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--urgent-rgb, 239, 68, 68), 0);
+  }
 }
 
 /* The "Command Panel" container style */
@@ -43,7 +64,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1), box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .cmd-header {
@@ -86,8 +107,18 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.status-badge--live { border-color: var(--color-urgent); color: var(--color-urgent); box-shadow: 0 0 8px rgba(255, 71, 87, 0.2); }
-.status-badge--safe { border-color: var(--color-success); color: var(--color-success); }
+.status-badge--live {
+  border-color: var(--color-urgent);
+  color: var(--color-urgent);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+  animation: pulse-glow 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.status-badge--safe {
+  border-color: var(--color-success);
+  color: var(--color-success);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
 
 /* Utility: Buttons */
 .cmd-btn {
@@ -108,8 +139,9 @@ body {
 
 .cmd-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .cmd-btn--primary {
@@ -119,9 +151,9 @@ body {
 }
 
 .cmd-btn--primary:hover:not(:disabled) {
-  background: rgba(96, 171, 255, 0.25);
-  border-color: #60abff;
-  box-shadow: 0 0 12px rgba(96, 171, 255, 0.2);
+  background: rgba(59, 130, 246, 0.25);
+  border-color: var(--color-police);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.3);
 }
 
 .cmd-btn--ghost {
@@ -136,10 +168,23 @@ body {
 }
 
 /* Scrollbars */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
 
 /* HUD Topbar */
 .hud-top {
@@ -298,31 +343,46 @@ body {
   backdrop-filter: blur(12px);
 }
 
+.hud-build-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+}
+
+.hud-build-inline .cmd-select {
+  min-width: 180px;
+  max-width: 220px;
+}
+
 .cmd-btn--urgent {
-  background: rgba(255, 71, 87, 0.15);
-  border-color: rgba(255, 71, 87, 0.4);
-  color: #ff8a8a;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
 }
 
 .cmd-btn--urgent:hover {
-  background: rgba(255, 71, 87, 0.25);
+  background: rgba(239, 68, 68, 0.25);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
 }
 
 /* Incident Cards */
 .incident-card {
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-left: 3px solid var(--color-police);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: all 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1), background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .incident-card:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+  box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .incident-card--compact {
@@ -476,7 +536,11 @@ body {
 }
 
 /* Secondary Panel Positioning & Styles */
-.test-panel, .layers-panel, .intel-panel, .cases-panel, .ledger {
+.test-panel,
+.layers-panel,
+.intel-panel,
+.cases-panel,
+.ledger {
   top: 96px !important;
   background: var(--color-panel-bg) !important;
   backdrop-filter: var(--glass-blur) !important;
@@ -535,13 +599,16 @@ body {
 }
 
 /* General Button & Input Overrides for Theme Consistency */
-.btn, .filter-pill {
+.btn,
+.filter-pill {
   font-family: var(--font-ui);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.filter-select, .cmd-select, .station-input {
+.filter-select,
+.cmd-select,
+.station-input {
   background: rgba(0, 0, 0, 0.3) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: #fff !important;
@@ -586,7 +653,8 @@ body {
 .layers-container {
   position: absolute;
   bottom: 16px;
-  left: 280px; /* Positioned next to the Unit Status Strip */
+  left: 280px;
+  /* Positioned next to the Unit Status Strip */
   z-index: 31;
   display: flex;
   flex-direction: column-reverse;
@@ -602,7 +670,8 @@ body {
 
 /* Intel Panel Stacking */
 .intel-panel {
-  top: 320px !important; /* Move Intel panel lower so it doesn't overlap Test panel */
+  top: 320px !important;
+  /* Move Intel panel lower so it doesn't overlap Test panel */
   max-height: calc(100vh - 340px) !important;
 }
 
@@ -619,9 +688,11 @@ body {
 }
 
 /* Command Hint & Toast Positioning */
-.command-hint, .toast {
+.command-hint,
+.toast {
   top: 96px !important;
-  z-index: 150 !important; /* Ensure it floats above other panels */
+  z-index: 150 !important;
+  /* Ensure it floats above other panels */
 }
 
 .command-hint {
@@ -641,7 +712,8 @@ body {
 }
 
 /* Relocate Command Hint & Toast to Bottom Center */
-.command-hint, .toast {
+.command-hint,
+.toast {
   top: auto !important;
   bottom: 120px !important;
   left: 50% !important;
@@ -663,20 +735,23 @@ body {
 .intel-panel {
   top: auto !important;
   bottom: 16px !important;
-  right: 350px !important; /* Positioned to the left of the Radio Feed */
+  right: 350px !important;
+  /* Positioned to the left of the Radio Feed */
   width: 360px !important;
   max-height: 400px !important;
 }
 
 /* Map Layers (Bottom Left area) */
 .layers-container {
-  left: 320px !important; /* Move it further right to not overlap unit-strip */
+  left: 320px !important;
+  /* Move it further right to not overlap unit-strip */
   bottom: 16px !important;
 }
 
 /* UI Fixes: Opacity & Visibility */
 :root {
-  --color-panel-bg: rgba(12, 18, 26, 0.98); /* Much more opaque */
+  --color-panel-bg: rgba(12, 18, 26, 0.98);
+  /* Much more opaque */
   --glass-blur: blur(20px);
 }
 
@@ -688,7 +763,8 @@ body {
 /* Relocate Layers to Top Right (Staggered) */
 .layers-container {
   top: 96px !important;
-  right: 350px !important; /* To the left of the Test Panel */
+  right: 350px !important;
+  /* To the left of the Test Panel */
   bottom: auto !important;
   left: auto !important;
   position: absolute !important;
@@ -736,7 +812,8 @@ body {
 
 .intel-panel {
   bottom: 16px !important;
-  right: 350px !important; /* To the left of the Radio Feed */
+  right: 350px !important;
+  /* To the left of the Radio Feed */
   top: auto !important;
   width: 360px !important;
   max-height: 450px !important;
@@ -771,7 +848,8 @@ body {
 }
 
 .cmd-panel {
-  background-color: #0c121a !important; /* Solid dark background */
+  background-color: #0c121a !important;
+  /* Solid dark background */
   opacity: 1 !important;
 }
 
@@ -787,7 +865,8 @@ body {
 }
 
 /* Standardized Toggle Buttons */
-.test-panel-toggle, .layers-container .cmd-btn {
+.test-panel-toggle,
+.layers-container .cmd-btn {
   background: #1a2530 !important;
   border: 1px solid var(--color-police) !important;
   opacity: 1 !important;
@@ -798,18 +877,21 @@ body {
   border-radius: 8px !important;
 }
 
-.test-panel-toggle:hover, .layers-container .cmd-btn:hover {
+.test-panel-toggle:hover,
+.layers-container .cmd-btn:hover {
   background: #243440 !important;
   border-color: #fff !important;
 }
 
 /* Final UI Interaction Refinement */
-.test-panel-toggle, .layers-container .cmd-btn {
+.test-panel-toggle,
+.layers-container .cmd-btn {
   z-index: 1000 !important;
 }
 
 /* Rotate rings in CSS for simpler math: 12 o'clock start */
-.incident-ring, .incident-ring-outline {
+.incident-ring,
+.incident-ring-outline {
   transform: rotate(-90deg);
   transform-origin: center;
   transform-box: fill-box;
@@ -857,13 +939,11 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    rgba(0, 0, 0, 0.15) 0px,
-    rgba(0, 0, 0, 0.15) 1px,
-    transparent 1px,
-    transparent 2px
-  );
+  background: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.15) 0px,
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px);
   pointer-events: none;
 }
 
@@ -977,13 +1057,21 @@ body {
 
 /* Increased Radio Feed Height */
 .radio-feed {
-  max-height: 280px !important; /* Made significantly taller for larger font */
+  max-height: 280px !important;
+  /* Made significantly taller for larger font */
 }
 
 /* Green Pulse for On-Scene Units */
 @keyframes green-pulse-ring {
-  0% { transform: scale(0.6); opacity: 0.8; }
-  100% { transform: scale(1.2); opacity: 0; }
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
 }
 
 .marker--vehicle-scene::after {
@@ -1035,8 +1123,13 @@ body {
   font-weight: bold;
 }
 
-.window-control-btn--minimize { background: #f1c40f; }
-.window-control-btn--close { background: #e74c3c; }
+.window-control-btn--minimize {
+  background: #f1c40f;
+}
+
+.window-control-btn--close {
+  background: #e74c3c;
+}
 
 .window-content {
   flex: 1;
@@ -1073,7 +1166,8 @@ body {
 }
 
 /* Final Window System Refinements */
-.radio-feed-content, .panel-content-only {
+.radio-feed-content,
+.panel-content-only {
   background: transparent !important;
   height: 100%;
   display: flex;
@@ -1165,9 +1259,11 @@ body {
 }
 
 /* Final UI Interaction Refinement: Force High Opacity and Stacking */
-.cmd-panel, .test-panel-toggle, .layers-container .cmd-btn {
+.cmd-panel,
+.test-panel-toggle,
+.layers-container .cmd-btn {
   background-color: #0c121a !important;
-  background-image: linear-gradient(180deg, rgba(255,255,255,0.05), transparent) !important;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent) !important;
   opacity: 1 !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
 }
@@ -1175,7 +1271,8 @@ body {
 /* Relocate Layers to top-right area but shifted left to avoid overlap */
 .layers-container {
   top: 96px !important;
-  right: 360px !important; /* Test panel is at 16px + 320px width = 336px */
+  right: 360px !important;
+  /* Test panel is at 16px + 320px width = 336px */
   bottom: auto !important;
   left: auto !important;
   z-index: 1100 !important;
@@ -1204,9 +1301,20 @@ body {
 
 /* Fixing on-scene pulse to green for all units */
 @keyframes green-pulse-ring {
-  0% { stroke-width: 10; opacity: 0.8; }
-  50% { stroke-width: 20; opacity: 0.2; }
-  100% { stroke-width: 10; opacity: 0.8; }
+  0% {
+    stroke-width: 10;
+    opacity: 0.8;
+  }
+
+  50% {
+    stroke-width: 20;
+    opacity: 0.2;
+  }
+
+  100% {
+    stroke-width: 10;
+    opacity: 0.8;
+  }
 }
 
 .marker--vehicle-scene::after {
@@ -1222,9 +1330,10 @@ body {
 }
 
 /* Standardized Toggle Buttons - Solid & Visible */
-.test-panel-toggle, .layers-container .cmd-btn {
+.test-panel-toggle,
+.layers-container .cmd-btn {
   background-color: #0c121a !important;
-  background-image: linear-gradient(180deg, rgba(255,255,255,0.05), transparent) !important;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent) !important;
   border: 2px solid var(--color-police) !important;
   opacity: 1 !important;
   color: #fff !important;
@@ -1246,12 +1355,14 @@ body {
   --font-size-xs: 9px;
 }
 
-.cmd-content, .window-content {
+.cmd-content,
+.window-content {
   font-size: var(--font-size-base);
 }
 
 .muted {
-  color: #a0b3cc !important; /* Higher contrast blue-grey */
+  color: #a0b3cc !important;
+  /* Higher contrast blue-grey */
 }
 
 /* 2. Tactile Button Feel */
@@ -1263,7 +1374,7 @@ body {
 
 .cmd-btn:active {
   transform: translateY(1px) scale(0.98);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* Glowing hover effect */
@@ -1271,7 +1382,7 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.1), transparent);
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.1), transparent);
   transform: translateX(-100%);
   transition: transform 0.4s ease;
 }
@@ -1322,7 +1433,7 @@ body {
   /* Slight backdrop boost for readability */
   background: linear-gradient(180deg, rgba(12, 18, 26, 0.95), rgba(12, 18, 26, 0.98)) !important;
   border: 1px solid var(--color-police) !important;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* 6. Incident List Spacing */
@@ -1338,15 +1449,30 @@ body {
 }
 
 @keyframes pulse-slow {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* Enhanced Live Indicator Animation */
 @keyframes pulse-live {
-  0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7); }
-  70% { box-shadow: 0 0 0 6px rgba(255, 71, 87, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 71, 87, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+  }
 }
 
 .radio-feed__live-indicator::before {
@@ -1380,7 +1506,7 @@ body {
   align-items: center;
   letter-spacing: 0.1em;
   z-index: 2;
-  box-shadow: 4px 0 10px rgba(0,0,0,0.5);
+  box-shadow: 4px 0 10px rgba(0, 0, 0, 0.5);
 }
 
 .regional-ticker__track {
@@ -1473,6 +1599,46 @@ body {
 }
 
 @keyframes ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.app.app--large-text {
+  font-size: 17px;
+}
+
+.app.app--color-assist {
+  --color-police: #38bdf8;
+  --color-fire: #f97316;
+  --color-ems: #fbbf24;
+  --color-tow: #34d399;
+}
+
+.app.app--high-contrast {
+  filter: contrast(1.15) saturate(1.05);
+}
+
+.app.app--high-contrast .hud-top,
+.app.app--high-contrast .window,
+.app.app--high-contrast .panel,
+.app.app--high-contrast .modal__card {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.app.app--high-contrast .muted {
+  color: rgba(238, 246, 255, 0.86) !important;
+}
+
+.app.app--reduced-motion *,
+.app.app--reduced-motion *::before,
+.app.app--reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

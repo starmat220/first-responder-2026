@@ -76,6 +76,10 @@ export const normalizeStation = (stationItem, index) => {
     name: stationItem.name || `Station ${id}`,
     stationType,
     department,
+    specialization:
+      typeof stationItem.specialization === 'string' && stationItem.specialization.trim()
+        ? stationItem.specialization.trim()
+        : 'standard',
     position: sanitizePosition(stationItem.position, DEFAULT_CENTER),
     level,
     garageCapacity: Number(stationItem.garageCapacity) || GARAGE_START_CAPACITY,
@@ -195,6 +199,14 @@ export const normalizeWeather = (weather, fallbackPos = DEFAULT_CENTER) => {
     temperatureC: Number.isFinite(Number(weather.temperatureC))
       ? Number(weather.temperatureC)
       : 20,
+    windSpeedKph: Number.isFinite(Number(weather.windSpeedKph))
+      ? Number(weather.windSpeedKph)
+      : 0,
+    precipitationMm: Number.isFinite(Number(weather.precipitationMm))
+      ? Number(weather.precipitationMm)
+      : 0,
+    timezone: typeof weather.timezone === 'string' ? weather.timezone : null,
+    timezoneAbbr: typeof weather.timezoneAbbr === 'string' ? weather.timezoneAbbr : null,
     updatedAt: Number(weather.updatedAt) || Date.now(),
     nextUpdateAt: Number(weather.nextUpdateAt) || Date.now() + 180000,
   }

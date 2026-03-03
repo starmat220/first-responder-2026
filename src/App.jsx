@@ -118,6 +118,32 @@ import {
   applyGoalProgress,
   normalizeDailyGoals,
 } from './game/missions'
+import {
+  PROGRESSION_HOOKS,
+  evaluateProgressionHooks,
+  normalizeUnlockedProgressionHooks,
+} from './game/progressionHooks'
+import {
+  DEFAULT_REPUTATION_SCORE,
+  applyDepartmentReputationEvent,
+  createInitialDepartmentReputation,
+  getDepartmentReputationLabel,
+  getDepartmentReputationModifiers,
+  normalizeDepartmentReputation,
+} from './game/reputation'
+import {
+  getLiveEventEffects,
+  getLiveEventRemainingLabel,
+  isLiveEventActive,
+  maybeStartLiveEvent,
+  normalizeLiveEvent,
+} from './game/liveEvents'
+import {
+  getDepartmentSpecializationMenu,
+  getDepartmentSpecializationModifiers,
+  getStationSpecializationDispatchBonus,
+  getStationSpecializationDefinition,
+} from './game/specializations'
 import { createTickSnapshot } from './game/snapshot'
 import {
   DEFAULT_TUNING_PRESET_ID,
@@ -139,11 +165,13 @@ import { useMapPresentation } from './hooks/useMapPresentation'
 import { useGameSimulation } from './hooks/useGameSimulation'
 import { useRadioSystem } from './hooks/useRadioSystem'
 import { useVehicleReturnLogic } from './hooks/useVehicleReturnLogic'
-import { usePersistence } from './hooks/usePersistence'
+import { getBackupStorageKey, usePersistence, writeSaveToStorage } from './hooks/usePersistence'
 import { useDepartmentModifiers } from './hooks/useDepartmentModifiers'
 import { GENERAL_CHATTER, DEPT_CHATTER } from './game/radioChatter'
 import { normalizeStation, normalizeVehicle, normalizeIncident, normalizeWeather } from './game/persistence'
 import { generateCrewMember } from './game/crewMember'
+import { createSaveExportPayload, parseSaveImportPayload, serializeSaveExport } from './game/saveTransfer'
+import { createPlaytestReport } from './game/playtest'
 import WelcomeMessage from './components/WelcomeMessage'
 import Window from './components/Window'
 import Topbar from './components/Topbar'
@@ -163,6 +191,9 @@ import RegionalTicker from './components/RegionalTicker'
 import { audio } from './game/audio'
 import './App.css'
 import './Theme.css'
+
+const INCIDENT_ICON_CACHE = new Map()
+const VEHICLE_ICON_CACHE = new Map()
 
 
 const getIncidentStagePlan = (
@@ -352,6 +383,19 @@ const DEFAULT_OPERATIONS_STREAK = {
   lastEvaluatedDay: null,
 }
 
+const DEFAULT_ACCESSIBILITY_STATE = {
+  highContrastMode: false,
+  reducedMotionMode: false,
+  largeTextMode: false,
+  colorAssistMode: false,
+}
+
+const createDefaultMutualAidState = () => ({
+  cooldownUntil: 0,
+  usesToday: 0,
+  dayKey: getMissionDayKey(),
+})
+
 const getNow = () => Date.now()
 const randomFloat = () => Math.random()
 const randomIndex = (length) => Math.floor(randomFloat() * length)
@@ -389,6 +433,7 @@ function App() {
   const [score, setScore] = useState(0)
   const [publicTrust, setPublicTrust] = useState(60)
   const [resolvedCount, setResolvedCount] = useState(0)
+  const playerProgressLevel = Math.max(1, Math.floor(score / LEVEL_SCORE_STEP) + 1)
   const [debriefs, setDebriefs] = useState([])
   const [stations, setStations] = useState([])
   const [activeStationId, setActiveStationId] = useState(null)
@@ -424,6 +469,9 @@ function App() {
   const [showCases, setShowCases] = useState(false)
   const [showTelemetry, setShowTelemetry] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showBugReporter, setShowBugReporter] = useState(false)
+  const [bugReportSeverity, setBugReportSeverity] = useState('normal')
+  const [bugReportNotes, setBugReportNotes] = useState('')
   const [showNextSteps, setShowNextSteps] = useState(true)
   const [rememberWindowPositions, setRememberWindowPositions] = useState(false)
   const [showTestPanel, setShowTestPanel] = useState(true)
@@ -458,6 +506,15 @@ function App() {
   const [selectedCaseId, setSelectedCaseId] = useState(null)
   const [followUpPromptId, setFollowUpPromptId] = useState(null)
   const [telemetryStats, setTelemetryStats] = useState(createDepartmentTelemetry)
+  const [departmentReputation, setDepartmentReputation] = useState(
+    createInitialDepartmentReputation
+  )
+  const [liveEvent, setLiveEvent] = useState(null)
+  const [progressionHooksUnlocked, setProgressionHooksUnlocked] = useState(
+    normalizeUnlockedProgressionHooks({})
+  )
+  const [mutualAidState, setMutualAidState] = useState(createDefaultMutualAidState)
+  const [accessibilityState, setAccessibilityState] = useState(DEFAULT_ACCESSIBILITY_STATE)
 
   const progression = useMemo(
     () => ({
@@ -476,14 +533,29 @@ function App() {
       emsStationUnlocked: resolvedCount >= PROGRESSION_MILESTONES.emsStationUnlockedAt,
       towYardUnlocked: resolvedCount >= PROGRESSION_MILESTONES.towYardUnlockedAt,
       publicWorksUnlocked: resolvedCount >= PROGRESSION_MILESTONES.publicWorksUnlockedAt,
+      specializationDoctrineUnlocked: Boolean(progressionHooksUnlocked.specialization_doctrine),
+      incidentChainProtocolUnlocked: Boolean(progressionHooksUnlocked.incident_chain_protocol),
+      departmentReputationUnlocked: Boolean(progressionHooksUnlocked.department_reputation),
+      liveOpsNetworkUnlocked: Boolean(progressionHooksUnlocked.live_ops_network),
+      mutualAidCommandUnlocked: Boolean(progressionHooksUnlocked.mutual_aid_command),
     }),
-    [resolvedCount, telemetryStats]
+    [resolvedCount, telemetryStats, progressionHooksUnlocked]
+  )
+  const progressionHookStatus = useMemo(
+    () =>
+      evaluateProgressionHooks({
+        level: playerProgressLevel,
+        resolvedCount,
+        unlocked: progressionHooksUnlocked,
+      }),
+    [playerProgressLevel, progressionHooksUnlocked, resolvedCount]
   )
 
   const [radioLogs, setRadioLogs] = useState([])
   const [missionDayKey, setMissionDayKey] = useState(getMissionDayKey())
   const [dailyGoals, setDailyGoals] = useState(() => createDailyGoals(getMissionDayKey()))
   const [operationsStreak, setOperationsStreak] = useState(DEFAULT_OPERATIONS_STREAK)
+  const [tutorialFlags, setTutorialFlags] = useState({})
   const [goalHighlightIds, setGoalHighlightIds] = useState([])
   const [goalDismissingIds, setGoalDismissingIds] = useState([])
   const followUpPromptTimer = useRef(null)
@@ -513,6 +585,87 @@ function App() {
     if (resolvedCount < EARLY_PHASE_RESOLVED_LIMIT) return 'EXPANDED OPS'
     return 'REGIONAL OPS'
   }, [resolvedCount])
+  const weatherLocationLabel =
+    typeof weather?.timezone === 'string' && weather.timezone
+      ? (() => {
+        const label = weather.timezone.split('/').pop()
+        return label ? label.replace(/_/g, ' ') : 'Local'
+      })()
+      : Array.isArray(weather?.position) && weather.position.length === 2
+        ? (() => {
+          const latitude = Number(weather.position[0])
+          const longitude = Number(weather.position[1])
+          if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            return `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`
+          }
+          return 'Local'
+        })()
+        : 'Local'
+  const weatherLocalTimeLabel =
+    typeof weather?.timezone === 'string' && weather.timezone
+      ? (() => {
+        try {
+          return new Intl.DateTimeFormat([], {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: weather.timezone,
+          }).format(new Date())
+        } catch {
+          return null
+        }
+      })()
+      : null
+  const weatherTimezoneLabel =
+    typeof weather?.timezoneAbbr === 'string' && weather.timezoneAbbr.trim()
+      ? weather.timezoneAbbr.trim()
+      : typeof weather?.timezone === 'string' && weather.timezone
+        ? (() => {
+          const label = weather.timezone.split('/').pop()
+          return label ? label.replace(/_/g, ' ') : ''
+        })()
+        : ''
+  const activeLiveEvent = useMemo(() => {
+    const normalized = normalizeLiveEvent(liveEvent)
+    if (!normalized) return null
+    return isLiveEventActive(normalized) ? normalized : null
+  }, [liveEvent])
+  const liveEventEffects = useMemo(
+    () => getLiveEventEffects(activeLiveEvent),
+    [activeLiveEvent]
+  )
+  const liveEventRemainingLabel = useMemo(
+    () => getLiveEventRemainingLabel(activeLiveEvent),
+    [activeLiveEvent]
+  )
+  const liveEventStatusLabel = activeLiveEvent
+    ? `${activeLiveEvent.title}${liveEventRemainingLabel ? ` (${liveEventRemainingLabel})` : ''}`
+    : 'No active regional event'
+  const effectiveDepartmentReputation = useMemo(() => {
+    if (progression.departmentReputationUnlocked) {
+      return normalizeDepartmentReputation(departmentReputation)
+    }
+    return createInitialDepartmentReputation(DEFAULT_REPUTATION_SCORE)
+  }, [departmentReputation, progression.departmentReputationUnlocked])
+  const departmentReputationModifiers = useMemo(
+    () =>
+      TELEMETRY_DEPARTMENT_IDS.reduce((acc, departmentId) => {
+        acc[departmentId] = getDepartmentReputationModifiers(
+          effectiveDepartmentReputation[departmentId]
+        )
+        return acc
+      }, {}),
+    [effectiveDepartmentReputation]
+  )
+  const departmentSpecializationModifiers = useMemo(
+    () =>
+      getDepartmentSpecializationModifiers({
+        stations,
+        level: playerProgressLevel,
+        resolvedCount,
+      }),
+    [playerProgressLevel, resolvedCount, stations]
+  )
 
   const vehiclesRef = useLatestRef(vehicles)
   const incidentsRef = useLatestRef(incidents)
@@ -521,15 +674,40 @@ function App() {
   const prisonsRef = useLatestRef(prisons)
   const nextIncidentIdRef = useLatestRef(nextIncidentId)
   const nextCaseIdRef = useLatestRef(nextCaseId)
-  const rewardMultiplierRef = useLatestRef(tuningPreset.rewardMultiplier)
-  const missPenaltyMultiplierRef = useLatestRef(tuningPreset.missPenaltyMultiplier)
+  const earlyOpsRewardMultiplier = useMemo(() => {
+    if (resolvedCount < 6) return 1.22
+    if (resolvedCount < 20) return 1.12
+    return 1
+  }, [resolvedCount])
+  const earlyOpsPenaltyMultiplier = useMemo(() => {
+    if (resolvedCount < 6) return 0.62
+    if (resolvedCount < 20) return 0.82
+    return 1
+  }, [resolvedCount])
+  const rewardMultiplierRef = useLatestRef(tuningPreset.rewardMultiplier * earlyOpsRewardMultiplier)
+  const missPenaltyMultiplierRef = useLatestRef(
+    tuningPreset.missPenaltyMultiplier * earlyOpsPenaltyMultiplier
+  )
   const pendingRebuildRoutes = useRef(new Set())
   const economyTimer = useRef(0)
   const simSpeedRef = useRef(simSpeedMultiplier)
+  const importSaveInputRef = useRef(null)
 
   useEffect(() => {
     stationsRef.current = stations
   }, [stations])
+
+  useEffect(() => {
+    INCIDENT_ICON_CACHE.clear()
+    VEHICLE_ICON_CACHE.clear()
+  }, [mapZoom])
+
+  const showMessage = useCallback((message) => {
+    setStatusMessage(message)
+    if (message) {
+      setTimeout(() => setStatusMessage(''), 3000)
+    }
+  }, [])
 
   const addRadioLog = (
     message,
@@ -624,44 +802,245 @@ function App() {
     )
   }, [weather, hasLoadedSave, addRadioLogRef])
 
-  const handleMutualAid = () => {
-    if (money < MUTUAL_AID_COST) {
-      showMessage('Not enough funds for Mutual Aid.')
+  const liveEventAnnouncementRef = useRef({ activeId: null, endedTitle: null })
+
+  useEffect(() => {
+    if (!hasLoadedSave) return
+    const evaluation = progressionHookStatus
+    if (evaluation.newlyUnlocked.length === 0) return
+    setProgressionHooksUnlocked(evaluation.unlocked)
+    const totalReward = evaluation.newlyUnlocked.reduce(
+      (sum, hook) => sum + (Number(hook.unlockReward) || 0),
+      0
+    )
+    const totalTrust = evaluation.newlyUnlocked.reduce(
+      (sum, hook) => sum + (Number(hook.trustBonus) || 0),
+      0
+    )
+    if (totalReward > 0) {
+      setMoney((prev) => prev + totalReward)
+      setTotalMoneyEarned((prev) => prev + totalReward)
+      setTransactions((prev) =>
+        [
+          {
+            id: `progression-unlock-${Date.now()}`,
+            label: `Progression unlock bundle (${evaluation.newlyUnlocked.length})`,
+            amount: totalReward,
+            time: new Date().toLocaleTimeString(),
+          },
+          ...prev,
+        ].slice(0, 100)
+      )
+    }
+    if (totalTrust > 0) {
+      setPublicTrust((prev) => clamp(prev + totalTrust, 0, 100))
+    }
+    evaluation.newlyUnlocked.forEach((hook) => {
+      showMessage(`Unlocked: ${hook.title}`)
+      addRadioLogRef.current?.(
+        `Operations upgrade online: ${hook.title}.`,
+        'success',
+        'SYSTEM',
+        'UPG'
+      )
+    })
+  }, [
+    addRadioLogRef,
+    hasLoadedSave,
+    progressionHookStatus,
+    showMessage,
+  ])
+
+  useEffect(() => {
+    if (!hasLoadedSave) return
+    if (!progression.liveOpsNetworkUnlocked) {
+      setLiveEvent(null)
       return
     }
-    setMoney((prev) => prev - MUTUAL_AID_COST)
+    const runScheduler = () => {
+      const now = getNow()
+      setLiveEvent((prev) =>
+        maybeStartLiveEvent({
+          activeEvent: prev,
+          resolvedCount,
+          weather,
+          departmentReputation: effectiveDepartmentReputation,
+          now,
+        })
+      )
+    }
+    runScheduler()
+    const timer = setInterval(runScheduler, 45 * 1000)
+    return () => clearInterval(timer)
+  }, [
+    effectiveDepartmentReputation,
+    hasLoadedSave,
+    progression.liveOpsNetworkUnlocked,
+    resolvedCount,
+    weather,
+  ])
 
-    // Spawn a temporary elite unit at a random map edge
-    const edge = randomChance(0.5) ? 0 : 1
-    const startPos = edge ? [45.88, -66.4] : [45.82, -66.5] // Rough edge coords
-    const newId = nextVehicleId
-    setNextVehicleId(prev => prev + 1)
+  useEffect(() => {
+    if (!hasLoadedSave) return
+    if (activeLiveEvent) {
+      if (liveEventAnnouncementRef.current.activeId !== activeLiveEvent.id) {
+        liveEventAnnouncementRef.current.activeId = activeLiveEvent.id
+        liveEventAnnouncementRef.current.endedTitle = null
+        showMessage(`Regional event: ${activeLiveEvent.title}`)
+        addRadioLogRef.current?.(
+          `Regional event active: ${activeLiveEvent.title}. ${activeLiveEvent.summary}`,
+          'warning',
+          'DISPATCH',
+          'EVT'
+        )
+      }
+      return
+    }
+    const priorActiveId = liveEventAnnouncementRef.current.activeId
+    if (priorActiveId && liveEventAnnouncementRef.current.endedTitle !== priorActiveId) {
+      liveEventAnnouncementRef.current.endedTitle = priorActiveId
+      liveEventAnnouncementRef.current.activeId = null
+      showMessage('Regional event concluded. Operations returning to baseline.')
+    }
+  }, [activeLiveEvent, addRadioLogRef, hasLoadedSave, showMessage])
 
-    const aidUnit = {
-      id: newId,
-      name: `Mutual Aid ${newId}`,
-      unitType: 'supervisor', // High capability
-      department: primaryDepartmentId,
-      status: VEHICLE_STATUS.available,
-      position: startPos,
-      speedKph: 80, // Very fast
-      crewAssigned: 2,
-      crewRequired: 2,
-      homeStationId: activeStationId, // Temporarily attach to active
-      shiftRemaining: MUTUAL_AID_DURATION, // Short duration
-      isMutualAid: true,
-      xp: 2000, // Experienced
-      level: 5,
+  useEffect(() => {
+    setMutualAidState((prev) => {
+      if (prev.dayKey === missionDayKey) return prev
+      return {
+        ...prev,
+        dayKey: missionDayKey,
+        usesToday: 0,
+      }
+    })
+  }, [missionDayKey])
+
+  const handleMutualAid = () => {
+    if (!activeStation) {
+      showMessage('Select or place a station before requesting Mutual Aid.')
+      return
+    }
+    const now = getNow()
+    if (mutualAidState.cooldownUntil > now) {
+      const waitSeconds = Math.max(1, Math.ceil((mutualAidState.cooldownUntil - now) / 1000))
+      showMessage(`Mutual Aid cooling down (${waitSeconds}s).`)
+      return
+    }
+    const maxDailyUses = progression.mutualAidCommandUnlocked ? 4 : 2
+    if ((mutualAidState.usesToday || 0) >= maxDailyUses) {
+      showMessage(`Mutual Aid quota reached (${maxDailyUses}/day).`)
+      return
     }
 
-    setVehicles(prev => [...prev, aidUnit])
-    addRadioLog('Mutual Aid unit 10-8 and responding from out of town.', 'info', 'SYSTEM')
-    showMessage('Mutual Aid requested.')
+    const reputationCostMultiplier =
+      departmentReputationModifiers[primaryDepartmentId]?.mutualAidCostMultiplier || 1
+    const liveEventCostMultiplier =
+      progression.liveOpsNetworkUnlocked && activeLiveEvent
+        ? liveEventEffects.mutualAidCostMultiplier || 1
+        : 1
+    const commandCostMultiplier = progression.mutualAidCommandUnlocked ? 0.9 : 1
+    const aidCost = Math.max(
+      300,
+      Math.round(MUTUAL_AID_COST * reputationCostMultiplier * liveEventCostMultiplier * commandCostMultiplier)
+    )
+    if (money < aidCost) {
+      showMessage(`Not enough funds for Mutual Aid ($${aidCost}).`)
+      return
+    }
+
+    const unitTypeByDepartment = {
+      [DEPARTMENTS.police.id]: 'supervisor',
+      [DEPARTMENTS.fire.id]: 'engine',
+      [DEPARTMENTS.ems.id]: 'ambulance',
+      [DEPARTMENTS.tow.id]: 'tow_truck',
+      [DEPARTMENTS.public_works.id]: 'utility_truck',
+    }
+    const unitType = unitTypeByDepartment[primaryDepartmentId] || 'supervisor'
+    const aidCount =
+      progression.mutualAidCommandUnlocked && activeLiveEvent && activeLiveEvent.departments?.includes(primaryDepartmentId)
+        ? 2
+        : 1
+    const edgeStart = randomChance(0.5) ? [45.88, -66.4] : [45.82, -66.5]
+    const cooldownSeconds = progression.mutualAidCommandUnlocked ? 75 : 120
+    const durationSeconds = progression.mutualAidCommandUnlocked
+      ? Math.round(MUTUAL_AID_DURATION * 1.5)
+      : MUTUAL_AID_DURATION
+
+    let nextIdBase = nextVehicleId
+    setNextVehicleId((prev) => {
+      nextIdBase = prev
+      return prev + aidCount
+    })
+
+    const aidUnits = Array.from({ length: aidCount }).map((_, index) => {
+      const id = nextIdBase + index
+      const offset = index * 0.0018
+      const spawnPos = [edgeStart[0] + offset, edgeStart[1] + offset]
+      const unitConfig = getUnitById(unitType)
+      const crewRequired = getCrewRequirement(unitType)
+      return {
+        id,
+        name: `Mutual Aid ${id}`,
+        unitType,
+        department: primaryDepartmentId,
+        status: VEHICLE_STATUS.available,
+        position: spawnPos,
+        speedKph: Math.max(70, Number(unitConfig?.baseSpeed) || 70),
+        crewAssigned: crewRequired,
+        crewRequired,
+        homeStationId: activeStation.id,
+        shiftRemaining: durationSeconds,
+        isMutualAid: true,
+        mutualAidExpiresAt: now + durationSeconds * 1000,
+        xp: 1800,
+        level: 5,
+      }
+    })
+
+    setMoney((prev) => prev - aidCost)
+    setVehicles((prev) => [...prev, ...aidUnits])
+    setTransactions((prev) =>
+      [
+        {
+          id: `mutual-aid-${now}`,
+          label: `Mutual Aid request (${primaryDepartmentId.toUpperCase()})`,
+          amount: -aidCost,
+          time: new Date(now).toLocaleTimeString(),
+        },
+        ...prev,
+      ].slice(0, 100)
+    )
+    setMutualAidState((prev) => ({
+      ...prev,
+      dayKey: missionDayKey,
+      usesToday: (prev.usesToday || 0) + 1,
+      cooldownUntil: now + cooldownSeconds * 1000,
+    }))
+    addRadioLog(
+      `Mutual Aid ${aidCount > 1 ? 'units' : 'unit'} 10-8, responding to ${DEPARTMENTS[primaryDepartmentId]?.shortLabel || 'OPS'}.`,
+      'info',
+      'SYSTEM'
+    )
+    showMessage(`Mutual Aid requested (-$${aidCost}).`)
   }
 
   const activeStation =
     stations.find((item) => item.id === activeStationId) || stations[0] || null
   const primaryDepartmentId = activeStation?.department || DEFAULT_DEPARTMENT_ID
+  const activeStationSpecializationOptions = useMemo(() => {
+    if (!activeStation) return []
+    return getDepartmentSpecializationMenu({
+      departmentId: activeStation.department || DEFAULT_DEPARTMENT_ID,
+      level: playerProgressLevel,
+      resolvedCount,
+    })
+  }, [activeStation, playerProgressLevel, resolvedCount])
+  const activeDepartmentReputationLabel =
+    progression.departmentReputationUnlocked
+      ? `${getDepartmentReputationLabel(
+        effectiveDepartmentReputation[primaryDepartmentId]
+      )} ${Math.round(effectiveDepartmentReputation[primaryDepartmentId] || 0)}`
+      : 'Reputation locked'
   const {
     focusMode,
     setFocusMode,
@@ -711,6 +1090,24 @@ function App() {
     }
     return undefined
   }, [activeStation, stationPanelTab])
+
+  useEffect(() => {
+    const expiredAidUnits = vehicles.filter(
+      (vehicle) =>
+        vehicle.isMutualAid &&
+        vehicle.status === VEHICLE_STATUS.off_shift &&
+        (Number(vehicle.shiftRemaining) || 0) <= 0
+    )
+    if (expiredAidUnits.length === 0) return
+    const expiredIds = new Set(expiredAidUnits.map((vehicle) => vehicle.id))
+    setVehicles((prev) => prev.filter((vehicle) => !expiredIds.has(vehicle.id)))
+    addRadioLogRef.current?.(
+      `Mutual Aid demobilized (${expiredAidUnits.length} unit${expiredAidUnits.length > 1 ? 's' : ''}).`,
+      'default',
+      'SYSTEM',
+      'AID-RTB'
+    )
+  }, [vehicles, addRadioLogRef])
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -774,8 +1171,12 @@ function App() {
     setShowCases(false)
     setShowTelemetry(false)
     setShowSettings(false)
+    setShowBugReporter(false)
+    setBugReportSeverity('normal')
+    setBugReportNotes('')
     setShowNextSteps(true)
     setRememberWindowPositions(false)
+    setAccessibilityState(DEFAULT_ACCESSIBILITY_STATE)
     setShowTestPanel(true)
     resetFocusMode()
     setIncidentFilters({
@@ -794,6 +1195,11 @@ function App() {
     setMissionDayKey(nextMissionDayKey)
     setDailyGoals(createDailyGoals(nextMissionDayKey, 0))
     setOperationsStreak(DEFAULT_OPERATIONS_STREAK)
+    setTutorialFlags({})
+    setProgressionHooksUnlocked(normalizeUnlockedProgressionHooks({}))
+    setDepartmentReputation(createInitialDepartmentReputation())
+    setLiveEvent(null)
+    setMutualAidState(createDefaultMutualAidState())
     setWeather(createInitialWeather(DEFAULT_CENTER))
     economyTimer.current = 0
   }
@@ -802,7 +1208,8 @@ function App() {
     money, playerName, playerCallsign, playerTitle, playerAvatar, totalMoneyEarned, score, publicTrust, resolvedCount, debriefs, transactions,
     stations, activeStationId, prisons, cases, vehicles, incidents,
     nextVehicleId, nextStationId, nextPrisonId, nextIncidentId, nextCaseId, nextSpecialId,
-    missionDayKey, dailyGoals, telemetryStats, unlockedTech, operationsStreak, weather,
+    missionDayKey, dailyGoals, telemetryStats, unlockedTech, operationsStreak, tutorialFlags, weather,
+    departmentReputation, liveEvent, progressionHooksUnlocked, mutualAidState,
     uiState: {
       stationPanelTab,
       showLayers,
@@ -813,14 +1220,56 @@ function App() {
       showNextSteps,
       rememberWindowPositions,
       showResearch,
+      accessibilityState,
+      tutorialFlags,
     }
   }), [
     money, playerName, playerCallsign, playerTitle, playerAvatar, totalMoneyEarned, score, publicTrust, resolvedCount, debriefs, transactions,
     stations, activeStationId, prisons, cases, vehicles, incidents,
     nextVehicleId, nextStationId, nextPrisonId, nextIncidentId, nextCaseId, nextSpecialId,
-    missionDayKey, dailyGoals, telemetryStats, unlockedTech, operationsStreak, weather,
-    stationPanelTab, showLayers, showCases, showTelemetry, tuningPresetId, incidentFilters, showNextSteps, rememberWindowPositions, showResearch
+    missionDayKey, dailyGoals, telemetryStats, unlockedTech, operationsStreak, tutorialFlags, weather,
+    departmentReputation, liveEvent, progressionHooksUnlocked, mutualAidState,
+    stationPanelTab, showLayers, showCases, showTelemetry, tuningPresetId, incidentFilters, showNextSteps, rememberWindowPositions, showResearch, accessibilityState
   ])
+  const playtestReport = useMemo(
+    () =>
+      createPlaytestReport({
+        saveSlot,
+        playerName,
+        playerCallsign,
+        level: playerProgressLevel,
+        score,
+        publicTrust,
+        money,
+        resolvedCount,
+        weather,
+        stations,
+        vehicles,
+        incidents,
+        notes: bugReportNotes,
+        severity: bugReportSeverity,
+      }),
+    [
+      bugReportNotes,
+      bugReportSeverity,
+      incidents,
+      money,
+      playerCallsign,
+      playerName,
+      playerProgressLevel,
+      publicTrust,
+      resolvedCount,
+      saveSlot,
+      score,
+      stations,
+      vehicles,
+      weather,
+    ]
+  )
+  const playtestReportText = useMemo(
+    () => JSON.stringify(playtestReport, null, 2),
+    [playtestReport]
+  )
 
   const loadState = useCallback((data) => {
     const safeStations = (Array.isArray(data.stations) ? data.stations : [])
@@ -875,6 +1324,7 @@ function App() {
     setShowNextSteps(ui.showNextSteps !== false);
     setRememberWindowPositions(Boolean(ui.rememberWindowPositions));
     if (ui.incidentFilters) setIncidentFilters(ui.incidentFilters);
+    setTutorialFlags(ui.tutorialFlags && typeof ui.tutorialFlags === 'object' ? ui.tutorialFlags : {})
     setTuningPresetId(ui.tuningPresetId || DEFAULT_TUNING_PRESET_ID);
 
     const loadedStreak = {
@@ -889,7 +1339,29 @@ function App() {
       normalizeDailyGoals(data.dailyGoals, loadedDayKey, loadedStreak.successfulDays)
     )
     setTelemetryStats(data.telemetryStats || createDepartmentTelemetry());
+    setDepartmentReputation(normalizeDepartmentReputation(data.departmentReputation))
+    setLiveEvent(normalizeLiveEvent(data.liveEvent))
+    setProgressionHooksUnlocked(
+      normalizeUnlockedProgressionHooks(data.progressionHooksUnlocked)
+    )
+    setMutualAidState(() => {
+      const fallback = createDefaultMutualAidState()
+      const source = data.mutualAidState || {}
+      return {
+        cooldownUntil: Math.max(0, Number(source.cooldownUntil) || 0),
+        usesToday: Math.max(0, Number(source.usesToday) || 0),
+        dayKey: typeof source.dayKey === 'string' ? source.dayKey : fallback.dayKey,
+      }
+    })
     setUnlockedTech(Array.isArray(data.unlockedTech) ? data.unlockedTech : []);
+    setAccessibilityState(
+      ui.accessibilityState && typeof ui.accessibilityState === 'object'
+        ? {
+          ...DEFAULT_ACCESSIBILITY_STATE,
+          ...ui.accessibilityState,
+        }
+        : DEFAULT_ACCESSIBILITY_STATE
+    )
     setShowWelcome(!safeStations.length);
   }, []);
 
@@ -1065,12 +1537,33 @@ function App() {
     badgeUnitDepartment = null,
     coResponseDepartments = null
   ) => {
-    const size = getMarkerSize(27)
+    const size = getMarkerSize(30)
+    const primaryDept = getDepartmentId(departmentId)
+    const badgeDept = getDepartmentId(badgeUnitDepartment || primaryDept)
+    const coResponseKey = Array.isArray(coResponseDepartments)
+      ? coResponseDepartments
+        .map((value) => getDepartmentId(value))
+        .sort()
+        .join(',')
+      : ''
+    const cacheKey = [
+      status,
+      priority,
+      primaryDept,
+      hasAssignedUnit ? 1 : 0,
+      badgeUnitType || '',
+      badgeDept,
+      coResponseKey,
+      size[0],
+      size[1],
+    ].join('|')
+    const cachedIcon = INCIDENT_ICON_CACHE.get(cacheKey)
+    if (cachedIcon) return cachedIcon
     const className =
       status === INCIDENT_STATUS.open || status === INCIDENT_STATUS.responding
         ? 'marker--incident'
         : 'marker--incident-hot'
-    return makeMarkerIcon(
+    const icon = makeMarkerIcon(
       className,
       getIncidentIconMarkup(
         priority,
@@ -1082,6 +1575,8 @@ function App() {
       ),
       size
     )
+    INCIDENT_ICON_CACHE.set(cacheKey, icon)
+    return icon
   }
 
   const getDepartmentColorClass = (departmentId) =>
@@ -1175,10 +1670,21 @@ function App() {
   }
 
   const getVehicleIcon = (status, unitType, department, hasDetainee) => {
-    const size = getMarkerSize(unitType === 'patrol' ? 20 : 22)
+    const size = getMarkerSize(unitType === 'patrol' ? 23 : 25)
+    const departmentId = department || DEFAULT_DEPARTMENT_ID
+    const cacheKey = [
+      status,
+      unitType || 'patrol',
+      departmentId,
+      hasDetainee ? 1 : 0,
+      size[0],
+      size[1],
+    ].join('|')
+    const cachedIcon = VEHICLE_ICON_CACHE.get(cacheKey)
+    if (cachedIcon) return cachedIcon
     const isPoliceEmergencyRun =
-      (department || DEFAULT_DEPARTMENT_ID) === DEPARTMENTS.police.id &&
-      (status === VEHICLE_STATUS.enroute || status === VEHICLE_STATUS.routing)
+      departmentId === DEPARTMENTS.police.id &&
+      status === VEHICLE_STATUS.enroute
     const className =
       status === VEHICLE_STATUS.enroute || isPoliceEmergencyRun
         ? 'marker--vehicle-active'
@@ -1191,18 +1697,88 @@ function App() {
               : status === VEHICLE_STATUS.off_shift
                 ? 'marker--vehicle-muted'
                 : 'marker--vehicle'
-    const departmentClass = `marker--department-${department || DEFAULT_DEPARTMENT_ID}`
+    const departmentClass = `marker--department-${departmentId}`
     const combinedClass = `${className} ${departmentClass}`
-    const iconMarkup = `${getUnitIconMarkup(unitType, status, department)}${getVehicleStateBadgesMarkup(hasDetainee)}`
-    return makeMarkerIcon(combinedClass, iconMarkup, size)
+    const iconMarkup = `${getUnitIconMarkup(unitType, status, departmentId)}${getVehicleStateBadgesMarkup(hasDetainee)}`
+    const icon = makeMarkerIcon(combinedClass, iconMarkup, size)
+    VEHICLE_ICON_CACHE.set(cacheKey, icon)
+    return icon
   }
 
-  const showMessage = (message) => {
-    setStatusMessage(message)
-    if (message) {
-      setTimeout(() => setStatusMessage(''), 3000)
+  useEffect(() => {
+    if (!hasLoadedSave) return
+
+    const emitTutorialTip = (id, message, code) => {
+      if (tutorialFlags[id]) return false
+      setTutorialFlags((prev) => ({ ...prev, [id]: true }))
+      showMessage(message)
+      addRadioLogRef.current?.(`Training Tip: ${message}`, 'default', 'SYSTEM', code)
+      return true
     }
-  }
+
+    if (!stations.length) {
+      emitTutorialTip(
+        'place_first_station',
+        'Place your first police station to activate city dispatch.',
+        'TIP-1'
+      )
+      return
+    }
+
+    if (!vehicles.length) {
+      emitTutorialTip(
+        'buy_first_unit',
+        'Open station operations and buy a patrol unit so dispatch can start.',
+        'TIP-2'
+      )
+      return
+    }
+
+    const firstOpenIncident = incidents.find((item) => item.status === INCIDENT_STATUS.open)
+    if (firstOpenIncident && (firstOpenIncident.assignedVehicleIds?.length || 0) === 0) {
+      emitTutorialTip(
+        'dispatch_first_call',
+        'Select an available unit and dispatch it before the timer expires.',
+        'TIP-3'
+      )
+      return
+    }
+
+    if (resolvedCount >= 3) {
+      emitTutorialTip(
+        'crew_staffing',
+        'Hire personnel to keep units crewed as call volume ramps up.',
+        'TIP-4'
+      )
+      return
+    }
+
+    if (resolvedCount >= PROGRESSION_MILESTONES.fireStationUnlockedAt - 1) {
+      emitTutorialTip(
+        'prep_fire_unlock',
+        'Fire station unlock is close. Keep cash available for expansion.',
+        'TIP-5'
+      )
+      return
+    }
+
+    if (resolvedCount >= PROGRESSION_MILESTONES.emsStationUnlockedAt - 1) {
+      emitTutorialTip(
+        'prep_ems_unlock',
+        'EMS unlock is approaching. Reserve funds for ambulances and medics.',
+        'TIP-6'
+      )
+    }
+  }, [
+    addRadioLogRef,
+    hasLoadedSave,
+    incidents,
+    resolvedCount,
+    showMessage,
+    stations.length,
+    tutorialFlags,
+    vehicles.length,
+  ])
 
   const getStationById = (id) => stationsRef.current.find((item) => item.id === id) || null
   const getPrisonById = (id) => prisonsRef.current.find((item) => item.id === id) || null
@@ -1336,7 +1912,6 @@ function App() {
 
     return STATION_COST + stations.length * 250 // Escalating cost for main stations
   }
-
   const getDefaultStationName = (stationType, stationId) => {
     const label = STATION_TYPES[stationType]?.label || 'Station'
     return `${label} ${stationId}`
@@ -1349,13 +1924,9 @@ function App() {
     setPlacingStationPosition,
     placingBuildingType,
     setPlacingBuildingType,
-    showBuildMenu,
-    setShowBuildMenu,
     buildOptions,
-    selectedBuildOption,
     placingBuildingLabel,
     getBuildingDefinition,
-    handleToggleBuildMenu,
     handleStartBuildingPlacement,
     handleMapClick,
     handleCancelPlacement,
@@ -1363,6 +1934,7 @@ function App() {
   } = useBuildingPlacement({
     getBuildingCost,
     progression,
+    level: playerProgressLevel,
     onStartPlacement: (selectedBuildingId) => {
       setShowWelcome(false)
       if (selectedBuildingId === STATION_TYPES.prison.id) {
@@ -1371,8 +1943,8 @@ function App() {
         setStationNameDraft(getDefaultStationName(selectedBuildingId, nextStationId))
       }
     },
-    onUnavailableBuilding: (buildingLabel) => {
-      showMessage(`${buildingLabel} is coming soon.`)
+    onUnavailableBuilding: (buildingLabel, reason = '') => {
+      showMessage(reason || `${buildingLabel} is locked. Keep progressing to unlock it.`)
     },
     onCancelPlacement: () => {
       showMessage('')
@@ -1380,6 +1952,13 @@ function App() {
   })
 
   const handlePlaceStation = (latlng, stationType = STATION_TYPES.police_station.id) => {
+    const buildOption = buildOptions.find((option) => option.id === stationType)
+    if (!buildOption?.enabled) {
+      showMessage(buildOption?.lockedReason || 'This building is currently locked.')
+      setPlacingStation(false)
+      setPlacingStationPosition(null)
+      return
+    }
     const buildCost = getBuildingCost(stationType)
     const building = getBuildingDefinition(stationType)
     const buildingDepartment = building.department || DEFAULT_DEPARTMENT_ID
@@ -1416,6 +1995,7 @@ function App() {
       name: stationNameDraft?.trim() || getDefaultStationName(stationType, newStationId),
       stationType,
       department: building.department || DEFAULT_DEPARTMENT_ID,
+      specialization: 'standard',
       position: newPosition,
       level: 1,
       garageCapacity: isHub ? 6 : isSmall ? 1 : isAviation ? 2 : GARAGE_START_CAPACITY,
@@ -1456,6 +2036,13 @@ function App() {
   }
 
   const handlePlacePrison = (latlng) => {
+    const prisonOption = buildOptions.find((option) => option.id === STATION_TYPES.prison.id)
+    if (!prisonOption?.enabled) {
+      showMessage(prisonOption?.lockedReason || 'Prison is currently locked.')
+      setPlacingStation(false)
+      setPlacingStationPosition(null)
+      return
+    }
     if (money < PRISON_BUILD_COST) {
       showMessage('Not enough funds to build a prison.')
       setPlacingStation(false)
@@ -2026,6 +2613,35 @@ function App() {
     )
     showMessage('Staffing capacity increased.')
   }
+  const handleUpdateStationSpecialization = (specializationId) => {
+    if (!activeStation) return
+    if (!progression.specializationDoctrineUnlocked) {
+      showMessage('Station specialization unlocks at later progression.')
+      return
+    }
+    const options = getDepartmentSpecializationMenu({
+      departmentId: activeStation.department || DEFAULT_DEPARTMENT_ID,
+      level: playerProgressLevel,
+      resolvedCount,
+    })
+    const selected = options.find((item) => item.id === specializationId)
+    if (!selected) return
+    if (!selected.unlocked) {
+      showMessage(selected.lockedReason || 'Specialization is locked.')
+      return
+    }
+    setStations((prev) =>
+      prev.map((item) =>
+        item.id === activeStation.id
+          ? {
+            ...item,
+            specialization: selected.id,
+          }
+          : item
+      )
+    )
+    showMessage(`${activeStation.name} doctrine set to ${selected.label}.`)
+  }
 
   const handleRenameStation = () => {
     if (!activeStation) return
@@ -2234,7 +2850,66 @@ function App() {
     showMessage(`${vehicle.name} crew released.`)
   }
 
-  const departmentIncidentModifiers = useDepartmentModifiers({ telemetryStats, vehicles })
+  const baseDepartmentIncidentModifiers = useDepartmentModifiers({ telemetryStats, vehicles })
+  const departmentIncidentModifiers = useMemo(() => {
+    const departmentIds = new Set([
+      ...Object.keys(DEPARTMENTS),
+      ...Object.keys(baseDepartmentIncidentModifiers || {}),
+      ...Object.keys(departmentSpecializationModifiers || {}),
+      ...Object.keys(departmentReputationModifiers || {}),
+    ])
+
+    const eventDepartments = new Set(activeLiveEvent?.departments || [])
+    const getEventFactor = (field, departmentId, fallback = 1) => {
+      const value = Number(liveEventEffects?.[field])
+      if (!Number.isFinite(value)) return fallback
+      if (eventDepartments.size === 0 || eventDepartments.has(departmentId)) return value
+      const distanceFromNeutral = value - 1
+      return 1 + distanceFromNeutral * 0.35
+    }
+
+    return Array.from(departmentIds).reduce((acc, departmentId) => {
+      const base = baseDepartmentIncidentModifiers?.[departmentId] || {}
+      const specialization = departmentSpecializationModifiers?.[departmentId] || {}
+      const reputation = departmentReputationModifiers?.[departmentId] || {}
+      acc[departmentId] = {
+        responseTargetMultiplier:
+          (base.responseTargetMultiplier || 1) *
+          (specialization.responseTargetMultiplier || 1) *
+          (reputation.responseTargetMultiplier || 1) *
+          getEventFactor('responseTargetMultiplier', departmentId, 1),
+        rewardMultiplier:
+          (base.rewardMultiplier || 1) *
+          (specialization.rewardMultiplier || 1) *
+          (reputation.rewardMultiplier || 1) *
+          getEventFactor('rewardMultiplier', departmentId, 1),
+        missPenaltyMultiplier:
+          (base.missPenaltyMultiplier || 1) *
+          (specialization.missPenaltyMultiplier || 1) *
+          (reputation.missPenaltyMultiplier || 1),
+        onSceneMultiplier:
+          (base.onSceneMultiplier || 1) *
+          (specialization.onSceneMultiplier || 1),
+        dispatchScoreBonus:
+          (specialization.dispatchScoreBonus || 0) +
+          (reputation.dispatchScoreBonus || 0),
+        chainChanceBonus:
+          (specialization.chainChanceBonus || 0) +
+          (reputation.chainChanceBonus || 0) +
+          (Number(liveEventEffects?.chainChanceBonus) || 0),
+        activeSpecializationLabel:
+          specialization.activeSpecializationLabel ||
+          getStationSpecializationDefinition(departmentId, 'standard').label,
+      }
+      return acc
+    }, {})
+  }, [
+    activeLiveEvent,
+    baseDepartmentIncidentModifiers,
+    departmentReputationModifiers,
+    departmentSpecializationModifiers,
+    liveEventEffects,
+  ])
 
   const spawnUnlocks = {
     traffic: progression.trafficUnitUnlocked,
@@ -2266,9 +2941,14 @@ function App() {
     onSceneSeconds: ON_SCENE_SECONDS,
     randomPointNear,
     spawnUnlocks,
-    intervalMultiplier: tuningPreset.intervalMultiplier,
-    maxActiveBias: tuningPreset.maxActiveBias,
+    intervalMultiplier:
+      tuningPreset.intervalMultiplier *
+      (progression.liveOpsNetworkUnlocked ? liveEventEffects.intervalMultiplier || 1 : 1),
+    maxActiveBias:
+      tuningPreset.maxActiveBias +
+      (progression.liveOpsNetworkUnlocked ? Number(liveEventEffects.maxActiveBias) || 0 : 0),
     departmentIncidentModifiers,
+    liveEvent: progression.liveOpsNetworkUnlocked ? activeLiveEvent : null,
   })
 
   const handleSpawnIncident = async () => {
@@ -2591,8 +3271,96 @@ function App() {
     const currentStage = Number(incident.stage) || 1
     const expectedStageTotal = Math.max(Number(incident.stageTotal) || 1, currentStage)
     const nextStageTotal = Math.max(expectedStageTotal, currentStage + 1)
+    const weatherCondition = weather?.condition || 'clear'
+    const severeWetWeather = ['rain', 'storm', 'snow', 'blizzard'].includes(weatherCondition)
+    const chainBias =
+      departmentIncidentModifiers[incident.requiredDepartment || DEFAULT_DEPARTMENT_ID]
+        ?.chainChanceBonus || 0
+    const shouldBranch = (baseChance) =>
+      randomChance(clamp(baseChance + chainBias, 0.05, 0.92))
+    const advancedChainUnlocked = progression.incidentChainProtocolUnlocked
+    const activeEventDepartments = activeLiveEvent?.departments || []
+    const isLiveEventDepartment =
+      activeEventDepartments.length > 0 &&
+      activeEventDepartments.includes(incident.requiredDepartment || DEFAULT_DEPARTMENT_ID)
 
-    if ((grade === 'poor' || grade === 'late') && randomChance(0.35)) {
+    if (advancedChainUnlocked && isLiveEventDepartment && shouldBranch(0.24)) {
+      return {
+        type: `${activeLiveEvent.title}: Secondary response`,
+        priority: Math.max(1, incident.priority - 1),
+        requiredUnits: Math.max(1, incident.requiredUnits || 1),
+        requiredDepartment: incident.requiredDepartment || DEFAULT_DEPARTMENT_ID,
+        caller: 'Regional command',
+        stageLabel: 'Escalation',
+        stageTotal: nextStageTotal,
+      }
+    }
+
+    if (
+      severeWetWeather &&
+      (lowered.includes('collision') || lowered.includes('traffic') || lowered.includes('accident')) &&
+      shouldBranch(0.4)
+    ) {
+      const mitigationDepartment = progression.publicWorksUnlocked
+        ? DEPARTMENTS.public_works.id
+        : DEPARTMENTS.tow.id
+      return {
+        type: 'Road hazard mitigation',
+        priority: 2,
+        requiredUnits: 1,
+        requiredDepartment: mitigationDepartment,
+        caller: 'Road operations',
+        stageLabel: 'Mitigation',
+        stageTotal: nextStageTotal,
+      }
+    }
+    if (
+      weatherCondition === 'heatwave' &&
+      incident.requiredDepartment === DEPARTMENTS.ems.id &&
+      shouldBranch(0.35)
+    ) {
+      return {
+        type: 'Cooling shelter standby',
+        priority: 2,
+        requiredUnits: 1,
+        requiredDepartment: DEPARTMENTS.ems.id,
+        caller: 'Health services',
+        stageLabel: 'Relief',
+        stageTotal: nextStageTotal,
+      }
+    }
+    if (
+      (lowered.includes('fire') || lowered.includes('smoke') || lowered.includes('explosion')) &&
+      grade !== 'excellent' &&
+      shouldBranch(0.3)
+    ) {
+      return {
+        type: 'Hotspot rekindle check',
+        priority: 2,
+        requiredUnits: 1,
+        requiredDepartment: DEPARTMENTS.fire.id,
+        caller: 'Fire command',
+        stageLabel: 'Suppression',
+        stageTotal: nextStageTotal,
+      }
+    }
+    if (
+      incident.requiredDepartment === DEPARTMENTS.tow.id &&
+      (grade === 'poor' || grade === 'late') &&
+      shouldBranch(0.3)
+    ) {
+      return {
+        type: 'Traffic flow restoration',
+        priority: 2,
+        requiredUnits: 1,
+        requiredDepartment: DEPARTMENTS.tow.id,
+        caller: 'Traffic management',
+        stageLabel: 'Clearance',
+        stageTotal: nextStageTotal,
+      }
+    }
+
+    if ((grade === 'poor' || grade === 'late') && shouldBranch(0.35)) {
       return {
         type: `Complaint review: ${incident.type}`,
         priority: Math.min(3, incident.priority + 1),
@@ -2602,7 +3370,7 @@ function App() {
         stageTotal: nextStageTotal,
       }
     }
-    if (incident.priority === 1 && (grade === 'poor' || caseScore < 6) && randomChance(0.4)) {
+    if (incident.priority === 1 && (grade === 'poor' || caseScore < 6) && shouldBranch(0.4)) {
       return {
         type: `Search continuation: ${incident.type}`,
         priority: 1,
@@ -2612,7 +3380,7 @@ function App() {
         stageTotal: nextStageTotal,
       }
     }
-    if (lowered.includes('burglary') && grade !== 'excellent' && randomChance(0.25)) {
+    if (lowered.includes('burglary') && grade !== 'excellent' && shouldBranch(0.25)) {
       return {
         type: 'Neighborhood canvas',
         priority: 2,
@@ -2676,6 +3444,29 @@ function App() {
     setSpecialEvents((prev) => prev.filter((item) => item.id !== eventId))
     showMessage('Special incident dispatched.')
   }
+  const getVehicleDispatchBonus = useCallback(
+    (vehicle, incident) => {
+      const station =
+        stationsRef.current.find((item) => item.id === vehicle.homeStationId) || null
+      const specializationBonus = progression.specializationDoctrineUnlocked
+        ? getStationSpecializationDispatchBonus({
+          station,
+          incident,
+          level: playerProgressLevel,
+          resolvedCount,
+        })
+        : 0
+      const departmentBonus =
+        departmentIncidentModifiers[vehicle.department || DEFAULT_DEPARTMENT_ID]?.dispatchScoreBonus || 0
+      return specializationBonus + departmentBonus
+    },
+    [
+      departmentIncidentModifiers,
+      playerProgressLevel,
+      progression.specializationDoctrineUnlocked,
+      resolvedCount,
+    ]
+  )
 
   const {
     getRequiredUnits,
@@ -2701,6 +3492,8 @@ function App() {
     addRadioLogRef,
     weather,
     unlockedTech,
+    departmentDispatchModifiers: departmentIncidentModifiers,
+    getVehicleDispatchBonus,
   })
 
   const recordTelemetryEvent = (event) => {
@@ -2738,6 +3531,14 @@ function App() {
       }
       return prev
     })
+    setDepartmentReputation((prev) =>
+      applyDepartmentReputationEvent({
+        reputation: prev,
+        departmentId,
+        type: event.type,
+        grade: event.grade,
+      })
+    )
     if (event.type === 'resolved') {
       let newlyCompletedGoalIds = []
       setDailyGoals((prev) => {
@@ -2907,6 +3708,104 @@ function App() {
     localStorage.removeItem(storageKey)
     applyDefaultState({ showWelcome: true })
     showMessage('Save reset.')
+  }
+
+  const handleRecoverFromBackup = () => {
+    const backupKey = getBackupStorageKey(storageKey)
+    const backupRaw = localStorage.getItem(backupKey)
+    if (!backupRaw) {
+      showMessage('No backup save found for this slot.')
+      return
+    }
+    if (!window.confirm('Recover this slot from the latest backup?')) return
+    try {
+      const parsed = JSON.parse(backupRaw)
+      localStorage.setItem(storageKey, backupRaw)
+      loadState(parsed)
+      setHasLoadedSave(true)
+      showMessage('Backup recovered.')
+    } catch (error) {
+      console.warn('Failed to recover backup save.', error)
+      showMessage('Backup recovery failed.')
+    }
+  }
+  const downloadTextFile = (filename, text, mimeType = 'application/json') => {
+    const blob = new Blob([text], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+  const handleExportSave = () => {
+    const payload = createSaveExportPayload({
+      gameState,
+      saveSlot,
+      schemaVersion: SAVE_SCHEMA_VERSION,
+    })
+    const serialized = serializeSaveExport(payload)
+    const dateLabel = new Date().toISOString().slice(0, 10)
+    downloadTextFile(`fr2026-slot${saveSlot}-${dateLabel}.json`, serialized)
+    showMessage('Save exported.')
+  }
+  const handleStartImportSave = () => {
+    importSaveInputRef.current?.click()
+  }
+  const handleImportSaveFile = async (event) => {
+    const input = event.target
+    const file = input?.files?.[0]
+    if (!file) return
+    try {
+      const raw = await file.text()
+      const payload = parseSaveImportPayload(raw)
+      if (!window.confirm(`Import save from ${file.name}? Current slot progress will be replaced.`)) {
+        return
+      }
+      const importedState = payload.data
+      writeSaveToStorage(storageKey, importedState, {
+        schemaVersion: Number(payload.schemaVersion) || SAVE_SCHEMA_VERSION,
+      })
+      loadState(importedState)
+      setHasLoadedSave(true)
+      showMessage('Save imported.')
+    } catch (error) {
+      console.warn('Failed to import save.', error)
+      showMessage(error?.message || 'Save import failed.')
+    } finally {
+      input.value = ''
+    }
+  }
+  const handleCopyBugReport = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(playtestReportText)
+      } else {
+        throw new Error('Clipboard unavailable')
+      }
+      showMessage('Bug report copied.')
+    } catch {
+      showMessage('Clipboard unavailable. Use download.')
+    }
+  }
+  const handleDownloadBugReport = () => {
+    const dateLabel = new Date().toISOString().replace(/[:.]/g, '-')
+    downloadTextFile(`fr2026-bugreport-slot${saveSlot}-${dateLabel}.json`, playtestReportText)
+    showMessage('Bug report downloaded.')
+  }
+  const handleStoreBugReport = () => {
+    try {
+      const key = 'fr2026.playtestReports'
+      const existingRaw = localStorage.getItem(key)
+      const existing = existingRaw ? JSON.parse(existingRaw) : []
+      const next = [playtestReport, ...(Array.isArray(existing) ? existing : [])].slice(0, 50)
+      localStorage.setItem(key, JSON.stringify(next))
+      showMessage('Bug report saved locally.')
+    } catch {
+      showMessage('Unable to save report locally.')
+    }
   }
 
   useEffect(() => {
@@ -3130,7 +4029,6 @@ function App() {
     setPlacingBuildingType(STATION_TYPES.police_station.id)
     setPlacingStation(true)
     setPlacingStationPosition(null)
-    setShowBuildMenu(false)
   }
   const handleFocusMyDepartment = () =>
     setIncidentFilters((prev) => ({
@@ -3162,7 +4060,7 @@ function App() {
     onShowIncidents: () => setShowIncidents(true),
     onFocusMyDepartment: handleFocusMyDepartment,
     onStartPlaceStation: handleStartPlaceStation,
-    onToggleBuildMenu: handleToggleBuildMenu,
+    onToggleBuildMenu: handleStartBuildingPlacement,
   })
   const { getIncidentPriorityVisual, getIncidentRingMetrics, getRouteClass } =
     useMapPresentation({
@@ -3253,7 +4151,7 @@ function App() {
       setGoalDismissingIds([])
     }, 60000)
     return () => clearInterval(interval)
-  }, [dailyGoals, missionDayKey, operationsStreak])
+  }, [dailyGoals, missionDayKey, operationsStreak, showMessage])
 
   const visibleDailyGoals = dailyGoals.filter((goal) => !goal.claimed)
   const handleClaimGoal = (goalId) => {
@@ -3300,9 +4198,26 @@ function App() {
       setGoalHighlightIds((prev) => prev.filter((id) => id !== goalId))
     }, 380)
   }
+  const appClassName = [
+    'app',
+    accessibilityState.highContrastMode ? 'app--high-contrast' : '',
+    accessibilityState.reducedMotionMode ? 'app--reduced-motion' : '',
+    accessibilityState.largeTextMode ? 'app--large-text' : '',
+    accessibilityState.colorAssistMode ? 'app--color-assist' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const mutualAidCooldownSeconds = Math.max(
+    0,
+    Math.ceil((Number(mutualAidState.cooldownUntil) - getNow()) / 1000)
+  )
+  const mutualAidButtonLabel =
+    mutualAidCooldownSeconds > 0
+      ? `BACKUP ${mutualAidCooldownSeconds}s`
+      : `BACKUP ${mutualAidState.usesToday || 0}/${progression.mutualAidCommandUnlocked ? 4 : 2}`
 
   return (
-    <div className="app">
+    <div className={appClassName}>
       <Topbar
         money={money}
         activeIncidentCount={activeIncidentCount}
@@ -3319,15 +4234,10 @@ function App() {
         onStartPlaceStation={handleStartPlaceStation}
         placingStation={placingStation}
         onCancelPlacement={handleCancelPlacement}
-        onToggleCases={() => setShowCases((prev) => !prev)}
-        showBuildMenu={showBuildMenu}
-        onToggleBuildMenu={handleToggleBuildMenu}
         buildOptions={buildOptions}
         placingBuildingType={placingBuildingType}
         onChangeBuildingType={setPlacingBuildingType}
         onStartBuildingPlacement={handleStartBuildingPlacement}
-        onCancelBuildMenu={() => setShowBuildMenu(false)}
-        selectedBuildOption={selectedBuildOption}
         onMutualAid={handleMutualAid}
         onResetLayout={handleResetLayout}
         onOpenFunds={() => setShowLedger(true)}
@@ -3338,8 +4248,23 @@ function App() {
         missionDayKey={missionDayKey}
         weatherSummary={currentWeatherSummary}
         weatherNextUpdateLabel={weatherNextUpdateLabel}
+        weatherLocationLabel={weatherLocationLabel}
+        weatherLocalTimeLabel={weatherLocalTimeLabel}
+        weatherTimezoneLabel={weatherTimezoneLabel}
         operationsPhase={operationsPhase}
+        liveEventStatusLabel={progression.liveOpsNetworkUnlocked ? liveEventStatusLabel : 'Live events locked'}
+        departmentReputationLabel={activeDepartmentReputationLabel}
+        mutualAidLabel={mutualAidButtonLabel}
+        mutualAidDisabled={mutualAidCooldownSeconds > 0}
         onEditProfile={() => setShowProfile(true)}
+        onReportBug={() => setShowBugReporter(true)}
+      />
+      <input
+        ref={importSaveInputRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: 'none' }}
+        onChange={handleImportSaveFile}
       />
 
       <main className="map-shell">
@@ -3635,6 +4560,36 @@ function App() {
                 </div>
               ))}
             </div>
+            <div className="telemetry-grid" style={{ marginTop: '16px' }}>
+              <div className="telemetry-row">
+                <p className="telemetry-row__title">Regional Event</p>
+                <p className="muted">{progression.liveOpsNetworkUnlocked ? liveEventStatusLabel : 'Unlock Live Ops Network to enable dynamic events.'}</p>
+              </div>
+              <div className="telemetry-row">
+                <p className="telemetry-row__title">Department Reputation</p>
+                {TELEMETRY_DEPARTMENT_IDS.map((departmentId) => {
+                  const score = Math.round(effectiveDepartmentReputation[departmentId] || DEFAULT_REPUTATION_SCORE)
+                  return (
+                    <p key={`rep-${departmentId}`} className="muted">
+                      {(DEPARTMENTS[departmentId]?.shortLabel || departmentId).toUpperCase()}: {score} ({getDepartmentReputationLabel(score)})
+                    </p>
+                  )
+                })}
+              </div>
+              <div className="telemetry-row">
+                <p className="telemetry-row__title">Progression Hooks</p>
+                {PROGRESSION_HOOKS.map((hook) => (
+                  <p key={hook.id} className="muted">
+                    {progressionHooksUnlocked[hook.id] ? 'ONLINE' : 'LOCKED'} · {hook.title}
+                  </p>
+                ))}
+                {progressionHookStatus.nextMilestone && (
+                  <p className="muted">
+                    Next: {progressionHookStatus.nextMilestone.title} (Lvl {progressionHookStatus.nextMilestone.minLevel}, {progressionHookStatus.nextMilestone.minResolved} resolved)
+                  </p>
+                )}
+              </div>
+            </div>
           </Window>
         )}
         <MapContainer
@@ -3903,7 +4858,7 @@ function App() {
 
         {statusMessage && <div className="toast">{statusMessage}</div>}
 
-        {showNextSteps && nextAction && !showBuildMenu && !placingStation && dismissedActionId !== nextAction.id && (
+        {showNextSteps && nextAction && !placingStation && dismissedActionId !== nextAction.id && (
           <aside className="cmd-panel command-hint">
             <div className="cmd-header">
               <h2 className="cmd-header__title">RECOMMENDED ACTION</h2>
@@ -4097,7 +5052,7 @@ function App() {
             id="settings"
             title="SETTINGS"
             initialPos={{ x: window.innerWidth - 520, y: window.innerHeight - 320 }}
-            initialSize={{ width: 320, height: 240 }}
+            initialSize={{ width: 380, height: 560 }}
             onClose={() => setShowSettings(false)}
             resetKey={uiResetKey}
           >
@@ -4125,9 +5080,167 @@ function App() {
                   onChange={(event) => setRememberWindowPositions(event.target.checked)}
                 />
               </label>
+              <label className="settings-row">
+                <span>
+                  <strong>High Contrast</strong>
+                  <small>Increase foreground/background separation.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={accessibilityState.highContrastMode}
+                  onChange={(event) =>
+                    setAccessibilityState((prev) => ({
+                      ...prev,
+                      highContrastMode: event.target.checked,
+                    }))
+                  }
+                />
+              </label>
+              <label className="settings-row">
+                <span>
+                  <strong>Reduced Motion</strong>
+                  <small>Reduce transitions and animated effects.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={accessibilityState.reducedMotionMode}
+                  onChange={(event) =>
+                    setAccessibilityState((prev) => ({
+                      ...prev,
+                      reducedMotionMode: event.target.checked,
+                    }))
+                  }
+                />
+              </label>
+              <label className="settings-row">
+                <span>
+                  <strong>Larger HUD Text</strong>
+                  <small>Scale up command/UI typography.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={accessibilityState.largeTextMode}
+                  onChange={(event) =>
+                    setAccessibilityState((prev) => ({
+                      ...prev,
+                      largeTextMode: event.target.checked,
+                    }))
+                  }
+                />
+              </label>
+              <label className="settings-row">
+                <span>
+                  <strong>Color Assist Palette</strong>
+                  <small>Use a color-safe high-separation palette.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={accessibilityState.colorAssistMode}
+                  onChange={(event) =>
+                    setAccessibilityState((prev) => ({
+                      ...prev,
+                      colorAssistMode: event.target.checked,
+                    }))
+                  }
+                />
+              </label>
+              <div className="settings-row settings-row--actions">
+                <span>
+                  <strong>Save Recovery</strong>
+                  <small>Restore this slot from the latest auto-backup snapshot.</small>
+                </span>
+                <button className="cmd-btn cmd-btn--primary" onClick={handleRecoverFromBackup}>
+                  Recover Backup
+                </button>
+              </div>
+              <div className="settings-row settings-row--actions">
+                <span>
+                  <strong>Save Export</strong>
+                  <small>Download this slot as a JSON backup file.</small>
+                </span>
+                <button className="cmd-btn" onClick={handleExportSave}>
+                  Export Save
+                </button>
+              </div>
+              <div className="settings-row settings-row--actions">
+                <span>
+                  <strong>Save Import</strong>
+                  <small>Import a JSON backup into the active slot.</small>
+                </span>
+                <button className="cmd-btn" onClick={handleStartImportSave}>
+                  Import Save
+                </button>
+              </div>
+              <div className="settings-row settings-row--actions">
+                <span>
+                  <strong>Playtest Report</strong>
+                  <small>Open diagnostics + bug report packager.</small>
+                </span>
+                <button className="cmd-btn" onClick={() => setShowBugReporter(true)}>
+                  Open Reporter
+                </button>
+              </div>
               <p className="muted settings-note">
                 More game settings can be added here over time.
               </p>
+            </div>
+          </Window>
+        )}
+        {showBugReporter && (
+          <Window
+            id="bug-reporter"
+            title="PLAYTEST REPORTER"
+            initialPos={{ x: window.innerWidth / 2 - 350, y: 120 }}
+            initialSize={{ width: 700, height: 520 }}
+            onClose={() => setShowBugReporter(false)}
+            resetKey={uiResetKey}
+          >
+            <div className="cmd-content" style={{ display: 'grid', gap: '10px' }}>
+              <div className="settings-row">
+                <span>
+                  <strong>Severity</strong>
+                  <small>Set priority for this playtest issue.</small>
+                </span>
+                <select
+                  className="cmd-select"
+                  value={bugReportSeverity}
+                  onChange={(event) => setBugReportSeverity(event.target.value)}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+              <label className="label" style={{ fontSize: '0.68rem' }}>
+                Notes
+              </label>
+              <textarea
+                className="textarea"
+                rows={3}
+                value={bugReportNotes}
+                onChange={(event) => setBugReportNotes(event.target.value)}
+                placeholder="What happened? Expected vs actual behavior..."
+              />
+              <label className="label" style={{ fontSize: '0.68rem' }}>
+                Generated Report Payload
+              </label>
+              <textarea
+                className="textarea"
+                rows={14}
+                value={playtestReportText}
+                readOnly
+              />
+              <div className="station-action-row">
+                <button className="cmd-btn" onClick={handleCopyBugReport}>
+                  Copy
+                </button>
+                <button className="cmd-btn" onClick={handleDownloadBugReport}>
+                  Download
+                </button>
+                <button className="cmd-btn cmd-btn--primary" onClick={handleStoreBugReport}>
+                  Save Local
+                </button>
+              </div>
             </div>
           </Window>
         )}
@@ -4241,6 +5354,9 @@ function App() {
               onTransferDetention={handleTransferDetention}
               onDeleteStation={handleDeleteStation}
               stationSummary={stationSummary}
+              specializationOptions={activeStationSpecializationOptions}
+              onUpdateSpecialization={handleUpdateStationSpecialization}
+              specializationDoctrineUnlocked={progression.specializationDoctrineUnlocked}
               prisonSummary={prisonSummary}
               onUnassignCrewMember={handleUnassignCrewMember}
               onAssignCrewMember={handleAssignCrewMember}
@@ -4464,6 +5580,8 @@ function App() {
           trust={publicTrust}
           resolvedCount={resolvedCount}
           lastResolveType={debriefs[0]?.type}
+          liveEventStatus={progression.liveOpsNetworkUnlocked ? liveEventStatusLabel : null}
+          departmentReputationLabel={activeDepartmentReputationLabel}
         />
       </main>
     </div>

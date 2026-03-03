@@ -2,6 +2,14 @@ import { useEffect, useRef } from 'react'
 import { SAVE_SCHEMA_VERSION } from '../game/constants'
 
 const STORAGE_BACKUP_SUFFIX = '.backup.latest'
+const MAX_DISCOVERED_SAVE_VERSIONS = 12
+const DEFAULT_STARTUP_STATE = { showWelcome: true }
+
+const resolveStorage = (storage) => {
+  if (storage) return storage
+  if (typeof localStorage !== 'undefined') return localStorage
+  return null
+}
 
 const getSlotSuffix = (storageKey) => {
   const match = String(storageKey || '').match(/\.slot\d+$/)
@@ -20,7 +28,12 @@ const splitStorageKey = (storageKey) => {
 
 const buildKeyWithSlot = (base, slotSuffix) => `${base}${slotSuffix}`
 
-const collectCandidateSaveKeys = (storageKey) => {
+export const getBackupStorageKey = (storageKey) =>
+  `${String(storageKey || '')}${STORAGE_BACKUP_SUFFIX}`
+
+export const collectCandidateSaveKeys = (storageKey, storage = null) => {
+  const activeStorage = resolveStorage(storage)
+  if (!activeStorage) return []
   const { slotSuffix, withoutSlot, familyBase } = splitStorageKey(storageKey)
   const candidates = new Set([
     storageKey,
@@ -28,12 +41,12 @@ const collectCandidateSaveKeys = (storageKey) => {
     buildKeyWithSlot(familyBase, slotSuffix),
   ])
 
-  for (let version = 1; version <= 8; version += 1) {
+  for (let version = 1; version <= MAX_DISCOVERED_SAVE_VERSIONS; version += 1) {
     candidates.add(buildKeyWithSlot(`${familyBase}.v${version}`, slotSuffix))
   }
 
-  for (let index = 0; index < localStorage.length; index += 1) {
-    const key = localStorage.key(index)
+  for (let index = 0; index < activeStorage.length; index += 1) {
+    const key = activeStorage.key(index)
     if (!key || key.endsWith(STORAGE_BACKUP_SUFFIX)) continue
     if (slotSuffix) {
       const inSameSlot = key.endsWith(slotSuffix)
@@ -53,8 +66,10 @@ const collectCandidateSaveKeys = (storageKey) => {
   return Array.from(candidates)
 }
 
-const parseSaveCandidate = (key) => {
-  const raw = localStorage.getItem(key)
+export const parseSaveCandidate = (key, storage = null) => {
+  const activeStorage = resolveStorage(storage)
+  if (!activeStorage) return null
+  const raw = activeStorage.getItem(key)
   if (!raw) return null
   try {
     const data = JSON.parse(raw)
@@ -80,6 +95,52 @@ const rankCandidates = (a, b) => {
   return getCandidateScore(b.data) - getCandidateScore(a.data)
 }
 
+export const pickBestSaveCandidate = (storageKey, storage = null) => {
+  const activeStorage = resolveStorage(storage)
+  if (!activeStorage) return null
+  const candidates = collectCandidateSaveKeys(storageKey, activeStorage)
+    .map((key) => parseSaveCandidate(key, activeStorage))
+    .filter(Boolean)
+    .sort(rankCandidates)
+  return candidates[0] || null
+}
+
+export const rehydrateSaveFromStorage = (storageKey, storage = null) => {
+  const activeStorage = resolveStorage(storage)
+  if (!activeStorage) return null
+  const selected = pickBestSaveCandidate(storageKey, activeStorage)
+  if (!selected) return null
+  if (selected.key !== storageKey) {
+    activeStorage.setItem(storageKey, selected.raw)
+  }
+  activeStorage.setItem(getBackupStorageKey(storageKey), selected.raw)
+  return selected.data
+}
+
+export const writeSaveToStorage = (
+  storageKey,
+  gameState,
+  {
+    schemaVersion = SAVE_SCHEMA_VERSION,
+    savedAt = Date.now(),
+    storage = null,
+  } = {}
+) => {
+  const activeStorage = resolveStorage(storage)
+  if (!activeStorage) return false
+  const saveData = {
+    schemaVersion,
+    savedAt,
+    ...gameState
+  }
+  const previous = activeStorage.getItem(storageKey)
+  if (previous) {
+    activeStorage.setItem(getBackupStorageKey(storageKey), previous)
+  }
+  activeStorage.setItem(storageKey, JSON.stringify(saveData))
+  return true
+}
+
 export const usePersistence = ({
   storageKey,
   hasLoadedSave,
@@ -101,26 +162,17 @@ export const usePersistence = ({
   // Load logic
   useEffect(() => {
     setHasLoadedSaveRef.current(false)
-    const candidates = collectCandidateSaveKeys(storageKey)
-      .map(parseSaveCandidate)
-      .filter(Boolean)
-      .sort(rankCandidates)
-
-    const selected = candidates[0] || null
-    if (!selected) {
-      applyDefaultStateRef.current({ showWelcome: true })
+    const loadedData = rehydrateSaveFromStorage(storageKey)
+    if (!loadedData) {
+      applyDefaultStateRef.current(DEFAULT_STARTUP_STATE)
       setHasLoadedSaveRef.current(true)
       return
     }
     try {
-      if (selected.key !== storageKey) {
-        localStorage.setItem(storageKey, selected.raw)
-      }
-      localStorage.setItem(`${storageKey}${STORAGE_BACKUP_SUFFIX}`, selected.raw)
-      loadStateRef.current(selected.data)
+      loadStateRef.current(loadedData)
     } catch (error) {
       console.warn('Failed to load save data.', error)
-      applyDefaultStateRef.current({ showWelcome: true })
+      applyDefaultStateRef.current(DEFAULT_STARTUP_STATE)
     } finally {
       setHasLoadedSaveRef.current(true)
     }
@@ -129,17 +181,8 @@ export const usePersistence = ({
   // Save logic
   useEffect(() => {
     if (!hasLoadedSave) return
-    const saveData = {
-      schemaVersion: SAVE_SCHEMA_VERSION,
-      savedAt: Date.now(),
-      ...gameState
-    }
     try {
-      const existing = localStorage.getItem(storageKey)
-      if (existing) {
-        localStorage.setItem(`${storageKey}${STORAGE_BACKUP_SUFFIX}`, existing)
-      }
-      localStorage.setItem(storageKey, JSON.stringify(saveData))
+      writeSaveToStorage(storageKey, gameState)
     } catch (error) {
       console.warn('Failed to save data.', error)
     }

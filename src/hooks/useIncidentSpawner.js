@@ -246,6 +246,12 @@ const HOT_ONLY_KEYWORDS = [
   'brush fire from heat',
 ]
 
+const HEAT_DAYTIME_KEYWORDS = [
+  'heat exhaustion',
+  'heatstroke',
+  'dehydration',
+]
+
 const COLD_ONLY_KEYWORDS = [
   'hypothermia',
   'cold exposure',
@@ -256,6 +262,11 @@ const COLD_ONLY_KEYWORDS = [
   'flash freeze',
   'frozen',
   'nor\'easter',
+]
+
+const FREEZE_WINDOW_KEYWORDS = [
+  'black ice',
+  'flash freeze',
 ]
 
 const FOG_ONLY_KEYWORDS = [
@@ -277,8 +288,35 @@ const WET_WEATHER_KEYWORDS = [
   'storm',
 ]
 
+const STORM_ONLY_KEYWORDS = [
+  'windstorm',
+  'storm surge',
+  'power line down',
+  'arcing',
+  'nor\'easter',
+]
+
 const includesAnyKeyword = (text, keywords) =>
   keywords.some((keyword) => text.includes(keyword))
+
+const getWeatherLocalHour = (weather) => {
+  const timestamp = Number(weather?.updatedAt) || Date.now()
+  const timezone = typeof weather?.timezone === 'string' ? weather.timezone : null
+  if (timezone) {
+    try {
+      const hourLabel = new Intl.DateTimeFormat('en-CA', {
+        hour: '2-digit',
+        hourCycle: 'h23',
+        timeZone: timezone,
+      }).format(new Date(timestamp))
+      const parsed = Number(hourLabel)
+      if (Number.isFinite(parsed)) return parsed
+    } catch {
+      // Fallback to local runtime clock below.
+    }
+  }
+  return new Date(timestamp).getHours()
+}
 
 export const isIncidentTypeWeatherCompatible = (type, weather) => {
   if (!weather?.condition) return true
@@ -287,17 +325,51 @@ export const isIncidentTypeWeatherCompatible = (type, weather) => {
   const temperatureC = Number.isFinite(Number(weather.temperatureC))
     ? Number(weather.temperatureC)
     : 20
+  const hasIntensityReading = Number.isFinite(Number(weather.intensity))
+  const intensity = hasIntensityReading ? Number(weather.intensity) : 0
+  const hasPrecipitationReading = Number.isFinite(Number(weather.precipitationMm))
+  const precipitationMm = hasPrecipitationReading ? Number(weather.precipitationMm) : 0
+  const windSpeedKph = Number.isFinite(Number(weather.windSpeedKph))
+    ? Number(weather.windSpeedKph)
+    : 0
+  const localHour = getWeatherLocalHour(weather)
 
-  const hotProfile = condition === 'heatwave' || temperatureC >= 32
+  const hotProfile = condition === 'heatwave' || temperatureC >= 30
   const coldProfile =
-    condition === 'snow' || condition === 'blizzard' || temperatureC <= 2
-  const wetProfile = ['rain', 'storm', 'snow', 'blizzard'].includes(condition)
+    condition === 'snow' || condition === 'blizzard' || temperatureC <= 3
+  const wetProfile = ['rain', 'storm', 'snow', 'blizzard'].includes(condition) || intensity >= 0.55
+  const hasLiquidMetrics = hasIntensityReading || hasPrecipitationReading
+  const liquidStormProfile =
+    (condition === 'rain' || condition === 'storm') &&
+    (
+      !hasLiquidMetrics ||
+      condition === 'storm' ||
+      intensity >= 0.45 ||
+      precipitationMm >= 0.3
+    )
+  const stormProfile = condition === 'storm' || windSpeedKph >= 62
   const fogProfile = condition === 'fog'
+  const freezeWindowProfile = localHour <= 9 || localHour >= 18
+  const hotDaytimeProfile = localHour >= 9 && localHour <= 20
 
   if (includesAnyKeyword(normalized, HOT_ONLY_KEYWORDS) && !hotProfile) return false
   if (includesAnyKeyword(normalized, COLD_ONLY_KEYWORDS) && !coldProfile) return false
   if (includesAnyKeyword(normalized, FOG_ONLY_KEYWORDS) && !fogProfile) return false
-  if (includesAnyKeyword(normalized, WET_WEATHER_KEYWORDS) && !wetProfile) return false
+  if (includesAnyKeyword(normalized, WET_WEATHER_KEYWORDS) && !liquidStormProfile) return false
+  if (includesAnyKeyword(normalized, STORM_ONLY_KEYWORDS) && !stormProfile) return false
+  if (includesAnyKeyword(normalized, HEAT_DAYTIME_KEYWORDS) && !hotDaytimeProfile) return false
+  if (includesAnyKeyword(normalized, FREEZE_WINDOW_KEYWORDS) && !(coldProfile && freezeWindowProfile)) {
+    return false
+  }
+
+  // Allow generic rain/snow disruption calls when weather is broadly active.
+  if (
+    normalized.includes('weather') &&
+    (normalized.includes('related') || normalized.includes('exposure')) &&
+    !wetProfile
+  ) {
+    return false
+  }
 
   return true
 }
@@ -596,12 +668,14 @@ export const useIncidentSpawner = ({
   maxActiveBias = 0,
   departmentIncidentModifiers = null,
   addRadioLogRef = null,
+  liveEvent = null,
 }) => {
   const seededRef = useRef(false)
   const incidentsRef = useRef(incidents)
   const stationsRef = useRef(stations)
   const vehiclesRef = useRef(vehicles)
   const weatherRef = useRef(weather)
+  const liveEventRef = useRef(liveEvent)
 
   useEffect(() => {
     incidentsRef.current = incidents
@@ -617,6 +691,9 @@ export const useIncidentSpawner = ({
   useEffect(() => {
     weatherRef.current = weather
   }, [weather])
+  useEffect(() => {
+    liveEventRef.current = liveEvent
+  }, [liveEvent])
   const createIncident = useCallback(async () => {
     const stationList = stationsRef.current || []
     const firstStationAnchor =
@@ -637,8 +714,9 @@ export const useIncidentSpawner = ({
     let requiredDepartment = DEFAULT_DEPARTMENT_ID
     if (!inStarterPhase) {
       const INTRO_CHANCE = 0.1 // 10% chance to spawn an intro incident for an unlocked dept with no station
+      const introChance = resolvedCount < EARLY_PHASE_RESOLVED_LIMIT ? 0.06 : INTRO_CHANCE
       const introCandidates = unlockedDepts.filter(d => !builtDepts.has(d))
-      if (introCandidates.length > 0 && Math.random() < INTRO_CHANCE) {
+      if (introCandidates.length > 0 && Math.random() < introChance) {
         requiredDepartment = introCandidates[Math.floor(Math.random() * introCandidates.length)]
       } else if (builtDepts.size > 0) {
         // Otherwise, spawn for a built department (Full Throttle)
@@ -655,6 +733,15 @@ export const useIncidentSpawner = ({
       )
     if (weatherScenario?.department) {
       requiredDepartment = weatherScenario.department
+    }
+    const activeLiveEvent = liveEventRef.current
+    const liveEventDepartments = Array.isArray(activeLiveEvent?.departments)
+      ? activeLiveEvent.departments
+      : []
+    if (liveEventDepartments.length > 0 && Math.random() < 0.42) {
+      requiredDepartment =
+        liveEventDepartments[Math.floor(Math.random() * liveEventDepartments.length)] ||
+        requiredDepartment
     }
 
     const chosenStationForAnchor = stationList.find(s => s.department === requiredDepartment) || stationList[0] || null
@@ -741,7 +828,9 @@ export const useIncidentSpawner = ({
       const basePriority = pickPriority(new Date(), publicTrust)
       priority = pickPriorityForType(type, basePriority)
     }
-    if (inStarterPhase) {
+    if (resolvedCount < 2) {
+      priority = 3
+    } else if (inStarterPhase) {
       priority = Math.max(2, priority)
     }
 
@@ -793,12 +882,26 @@ export const useIncidentSpawner = ({
       departmentIncidentModifiers?.[reqDept] ||
       departmentIncidentModifiers?.[DEFAULT_DEPARTMENT_ID] ||
       null
+    const liveEventEffects = activeLiveEvent?.effects || null
+    const liveEventIsFocused = liveEventDepartments.includes(reqDept)
+    const eventResponseMultiplier = Number(liveEventEffects?.responseTargetMultiplier)
+    const safeEventResponseMultiplier = Number.isFinite(eventResponseMultiplier)
+      ? liveEventIsFocused
+        ? eventResponseMultiplier
+        : 1 + (eventResponseMultiplier - 1) * 0.35
+      : 1
+    const eventRewardMultiplier = Number.isFinite(Number(liveEventEffects?.rewardMultiplier))
+      ? liveEventIsFocused
+        ? Number(liveEventEffects.rewardMultiplier)
+        : 1 + (Number(liveEventEffects.rewardMultiplier) - 1) * 0.35
+      : 1
 
     const responseTargetSeconds = Math.max(
       45,
       Math.round(
         priorityConfig.responseTargetSeconds *
         (departmentMods?.responseTargetMultiplier || 1) *
+        safeEventResponseMultiplier *
         (1 + weatherPressure * 0.18)
       )
     )
@@ -837,7 +940,8 @@ export const useIncidentSpawner = ({
       requiredDepartment: reqDept,
       coResponseDepartments: coResponseDepts, // New field for multi-agency
       isMajor,
-      rewardMultiplier: (departmentMods?.rewardMultiplier || 1) * rewardMultiplier,
+      rewardMultiplier:
+        (departmentMods?.rewardMultiplier || 1) * rewardMultiplier * eventRewardMultiplier,
       missPenaltyMultiplier: (departmentMods?.missPenaltyMultiplier || 1) * (isMajor ? 2 : 1),
       onSceneDurationSeconds,
       dispatchedAt: null,
@@ -902,9 +1006,9 @@ export const useIncidentSpawner = ({
       const weatherIntervalMultiplier = getWeatherSpawnIntervalMultiplier(weatherRef.current)
       const progressionIntervalMultiplier =
         resolvedCount < STARTER_PHASE_RESOLVED_LIMIT
-          ? 1.4
+          ? 1.7
           : resolvedCount < EARLY_PHASE_RESOLVED_LIMIT
-            ? 1.15
+            ? 1.3
             : 1
       timeoutId = setTimeout(
         tick,
@@ -925,13 +1029,14 @@ export const useIncidentSpawner = ({
 
       const baseCap = 3
       const trustBonus = publicTrust >= 70 ? 1 : publicTrust <= 30 ? -1 : 0
-      const progressionBias =
+      const progressionCap =
         resolvedCount < STARTER_PHASE_RESOLVED_LIMIT
-          ? -2
+          ? 1
           : resolvedCount < EARLY_PHASE_RESOLVED_LIMIT
-            ? -1
-            : 0
-      const maxActive = clamp(baseCap + trustBonus + maxActiveBias + progressionBias, 1, 10)
+            ? 2
+            : 10
+      const dynamicCap = clamp(baseCap + trustBonus + maxActiveBias, 1, 10)
+      const maxActive = Math.min(dynamicCap, progressionCap)
 
       if (activeCount < maxActive) {
         createIncident()

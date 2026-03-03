@@ -55,6 +55,9 @@ const StationPanel = ({
   onTransferDetention,
   onDeleteStation,
   stationSummary,
+  specializationOptions,
+  onUpdateSpecialization,
+  specializationDoctrineUnlocked,
   onUpdateShiftPreset,
   onUpdateMinOnDuty,
   onAssignCrewMember,
@@ -239,6 +242,36 @@ const StationPanel = ({
                     if (window.confirm(`Decommission ${station.name}?`)) onDeleteStation()
                   }}>Decommission Station</button>
                 </div>
+              </ModuleCard>
+              <ModuleCard title="Specialization Doctrine">
+                {specializationDoctrineUnlocked ? (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <select
+                      className="cmd-select"
+                      value={station?.specialization || 'standard'}
+                      onChange={(event) => onUpdateSpecialization?.(event.target.value)}
+                    >
+                      {(specializationOptions || []).map((item) => (
+                        <option
+                          key={item.id}
+                          value={item.id}
+                          disabled={!item.unlocked}
+                        >
+                          {item.unlocked ? item.label : `${item.label} (Locked)`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="muted" style={{ fontSize: '0.66rem' }}>
+                      {(specializationOptions || []).find(
+                        (item) => item.id === (station?.specialization || 'standard')
+                      )?.description || 'Balanced station operations profile.'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="muted">
+                    Unlock specialization doctrine through progression milestones.
+                  </p>
+                )}
               </ModuleCard>
             </div>
           </div>

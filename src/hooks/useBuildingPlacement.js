@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import { BUILDING_CATALOG } from '../game/catalog'
 import { PROGRESSION_MILESTONES } from '../game/constants'
 import { STATION_TYPES } from '../game/departments'
+import { evaluateBuildingTierAccess } from '../game/buildings'
 
 export const useBuildingPlacement = ({
   getBuildingCost,
   progression,
+  level = 1,
   onStartPlacement,
   onUnavailableBuilding,
   onCancelPlacement,
@@ -25,43 +27,87 @@ export const useBuildingPlacement = ({
         const dept = type?.department
 
         let enabled = false
+        let lockedReason = ''
 
         // Base Police/Prison always enabled
         if (dept === 'police' && type.size !== 'elite') enabled = true
+        if (dept === 'police' && type.size === 'elite' && progression?.precinctUpgradeUnlocked) {
+          enabled = true
+        } else if (dept === 'police' && type.size === 'elite') {
+          lockedReason = `Requires ${PROGRESSION_MILESTONES.precinctUpgradeUnlockedAt} resolved calls to unlock elite police stations.`
+        }
         if (building.id === STATION_TYPES.prison.id) enabled = true
+        if (dept === 'logistics') enabled = true
 
         // Fire gates
-        if (dept === 'fire' && progression?.fireStationUnlocked) enabled = true
+        if (dept === 'fire' && progression?.fireStationUnlocked) {
+          enabled = true
+        } else if (dept === 'fire') {
+          lockedReason = `Requires ${PROGRESSION_MILESTONES.fireStationUnlockedAt} resolved calls to unlock Fire.`
+        }
 
         // EMS gates
-        if (dept === 'ems' && progression?.emsStationUnlocked) enabled = true
+        if (dept === 'ems' && progression?.emsStationUnlocked) {
+          enabled = true
+        } else if (dept === 'ems') {
+          lockedReason = `Requires ${PROGRESSION_MILESTONES.emsStationUnlockedAt} resolved calls to unlock EMS.`
+        }
 
         // Tow gates
-        if (dept === 'tow' && progression?.towYardUnlocked) enabled = true
+        if (dept === 'tow' && progression?.towYardUnlocked) {
+          enabled = true
+        } else if (dept === 'tow') {
+          lockedReason = `Requires ${PROGRESSION_MILESTONES.towYardUnlockedAt} resolved calls to unlock Tow.`
+        }
 
         // Coastal gates
-        if (dept === 'coastal' && progression?.towYardUnlocked) enabled = true // Coastal unlocks with Tow
+        if (dept === 'coastal' && progression?.towYardUnlocked) {
+          enabled = true // Coastal unlocks with Tow
+        } else if (dept === 'coastal') {
+          lockedReason = `Requires ${PROGRESSION_MILESTONES.towYardUnlockedAt} resolved calls to unlock Coastal.`
+        }
 
         // Public Works gates
-        if (dept === 'public_works' && progression?.publicWorksUnlocked) enabled = true // PW unlocks later
+        if (dept === 'public_works' && progression?.publicWorksUnlocked) {
+          enabled = true // PW unlocks later
+        } else if (dept === 'public_works') {
+          lockedReason = `Requires ${PROGRESSION_MILESTONES.publicWorksUnlockedAt} resolved calls to unlock Public Works.`
+        }
 
         // Logistics/Hubs gates - require more experience (e.g. 25 resolved)
         if (type?.category === 'hub' || type?.category === 'training' || type?.category === 'medical_hub') {
           enabled = enabled && (progression?.resolvedCount >= PROGRESSION_MILESTONES.hubUnlockAt)
+          if (!enabled && !lockedReason) {
+            lockedReason = `Requires ${PROGRESSION_MILESTONES.hubUnlockAt} resolved calls.`
+          }
         }
 
         // Aviation/Water gates - require some experience (e.g. 10 resolved)
         if (type?.category === 'aviation' || type?.category === 'water') {
           enabled = enabled && (progression?.resolvedCount >= PROGRESSION_MILESTONES.aviationUnlockAt)
+          if (!enabled && !lockedReason) {
+            lockedReason = `Requires ${PROGRESSION_MILESTONES.aviationUnlockAt} resolved calls.`
+          }
+        }
+
+        const tierAccess = evaluateBuildingTierAccess({
+          building,
+          level,
+          resolvedCount: progression?.resolvedCount || 0,
+        })
+        if (!tierAccess.unlocked) {
+          enabled = false
+          lockedReason = tierAccess.reason
         }
 
         return {
           ...building,
           enabled,
+          lockedReason,
           cost: getBuildingCost(building.id),
         }
       }),
-    [getBuildingCost, progression]
+    [getBuildingCost, level, progression]
   )
 
   const selectedBuildOption =
@@ -83,7 +129,7 @@ export const useBuildingPlacement = ({
   const handleStartBuildingPlacement = () => {
     const selectedBuilding = buildOptions.find((item) => item.id === placingBuildingType)
     if (!selectedBuilding?.enabled) {
-      onUnavailableBuilding(selectedBuilding?.label || 'Building')
+      onUnavailableBuilding(selectedBuilding?.label || 'Building', selectedBuilding?.lockedReason || '')
       return
     }
     onStartPlacement(selectedBuilding.id)

@@ -1,7 +1,13 @@
 import React from 'react'
 import '../Theme.css'
 
-const RegionalTicker = ({ trust, resolvedCount, lastResolveType }) => {
+const RegionalTicker = ({
+  trust,
+  resolvedCount,
+  lastResolveType,
+  liveEventStatus,
+  departmentReputationLabel,
+}) => {
   const getMessages = () => {
     const msgs = [
       `REGIONAL NEWS: Oromocto Public Trust currently at ${trust}%`,
@@ -12,7 +18,9 @@ const RegionalTicker = ({ trust, resolvedCount, lastResolveType }) => {
     
     if (trust < 40) msgs.push("OPINION: Citizens concerned over slow emergency response times. #OromoctoAlert")
     if (lastResolveType) msgs.push(`UPDATE: Successful resolution of ${lastResolveType} on regional tactical grid.`)
-    
+    if (liveEventStatus) msgs.push(`LIVE OPS: ${liveEventStatus}`)
+    if (departmentReputationLabel) msgs.push(`OPS REP: ${departmentReputationLabel}`)
+
     return msgs.join(' | --- | ')
   }
 
