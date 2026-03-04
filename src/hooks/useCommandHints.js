@@ -24,6 +24,8 @@ export const useCommandHints = ({
   onFocusMyDepartment,
   onStartPlaceStation,
   onToggleBuildMenu,
+  campaignNextObjective = null,
+  onOpenCampaign = null,
 }) => {
   const alertsQueue = useMemo(() => {
     const bestByIncident = new Map()
@@ -225,6 +227,14 @@ export const useCommandHints = ({
         detail: 'Hire personnel to keep more units available each shift.',
         actionLabel: 'Manage Staffing',
         onAction: onOpenStation,
+      }
+    }
+    if (campaignNextObjective?.title) {
+      return {
+        title: campaignNextObjective.title,
+        detail: campaignNextObjective.detail,
+        actionLabel: campaignNextObjective.actionLabel || (onOpenCampaign ? 'Open Campaign' : null),
+        onAction: campaignNextObjective.onAction || onOpenCampaign || null,
       }
     }
     return {

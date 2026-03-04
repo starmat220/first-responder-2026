@@ -113,6 +113,7 @@ export const IncidentMarkers = ({
   getEligibleVehicleIds,
   canDispatchIncident,
   getIncidentRequirementLines,
+  getDispatchRecommendation,
   getRequiredUnits,
   handleQuickDispatch,
   getSelectedId,
@@ -127,6 +128,9 @@ export const IncidentMarkers = ({
       const eligibleIds = getEligibleVehicleIds(incident)
       const canDispatch = canDispatchIncident(incident)
       const requirementLines = canDispatch ? getIncidentRequirementLines(incident) : []
+      const dispatchRecommendation = canDispatch
+        ? getDispatchRecommendation?.(incident)
+        : null
       const badgeVehicleId =
         incident.onSceneVehicleIds?.[0] ||
         incident.assignedVehicleIds?.[0] ||
@@ -218,6 +222,12 @@ export const IncidentMarkers = ({
                   {requirementLines.map((line) => (
                     <span key={line}>{line}</span>
                   ))}
+                </div>
+              )}
+              {dispatchRecommendation && (
+                <div className="incident-popup__detail">
+                  <span>AI Dispatch</span>
+                  <span>{dispatchRecommendation.summary}</span>
                 </div>
               )}
             </div>

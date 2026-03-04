@@ -182,36 +182,55 @@ const IncidentsPanel = ({
   getVehicleIneligibilityReason,
   onQuickDispatch,
   getIncidentEdgePercent,
-}) => (
-  <div className="panel-content-only">
-    <div style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'flex-end' }}>
-      <button
-        className={`cmd-btn cmd-btn--small ${filters.isCompact ? 'cmd-btn--primary' : ''}`}
-        onClick={() => setFilters(p => ({ ...p, isCompact: !p.isCompact }))}
-      >
-        COMPACT
-      </button>
+}) => {
+  const openCount = incidents.filter((incident) => incident.status === 'open').length
+  const activeCount = incidents.filter(
+    (incident) => incident.status === 'open' || incident.status === 'responding' || incident.status === 'on_scene'
+  ).length
+
+  return (
+    <div className="panel-content-only menu-shell">
+      <div className="menu-shell__header">
+        <div>
+          <p className="menu-shell__title">Dispatch Queue</p>
+          <p className="menu-shell__hint">Select units, dispatch fast, and monitor response timing.</p>
+        </div>
+        <div className="menu-shell__metrics">
+          <span className="menu-stat-badge">{activeCount} active</span>
+          <span className="menu-stat-badge">{openCount} open</span>
+        </div>
+      </div>
+      <div className="menu-shell__toolbar">
+        <button
+          className={`cmd-btn cmd-btn--small ${filters.isCompact ? 'cmd-btn--primary' : ''}`}
+          onClick={() => setFilters((p) => ({ ...p, isCompact: !p.isCompact }))}
+        >
+          {filters.isCompact ? 'Expanded View' : 'Compact View'}
+        </button>
+      </div>
+      <div className="list-container menu-shell__body">
+        {incidents.length === 0 && <p className="menu-empty">No active incidents.</p>}
+        <div className="menu-card-list">
+          {incidents.map((inc) => (
+            <IncidentCard
+              key={inc.id}
+              incident={inc}
+              isCompact={filters.isCompact}
+              selectedId={getSelectedId(inc)}
+              onSelect={(incId, val) => setDispatchSelection((p) => ({ ...p, [incId]: Number(val) }))}
+              onDispatch={dispatchVehicle}
+              eligibleIds={getEligibleVehicleIds(inc)}
+              vehicles={vehicles}
+              getReason={getVehicleIneligibilityReason}
+              formatSeconds={formatSeconds}
+              onQuickDispatch={onQuickDispatch}
+              getIncidentEdgePercent={getIncidentEdgePercent}
+            />
+          ))}
+        </div>
+      </div>
     </div>
-    <div className="list-container" style={{ padding: '8px' }}>
-      {incidents.length === 0 && <p className="muted" style={{ textAlign: 'center', padding: '20px' }}>No active incidents.</p>}
-      {incidents.map(inc => (
-        <IncidentCard
-          key={inc.id}
-          incident={inc}
-          isCompact={filters.isCompact}
-          selectedId={getSelectedId(inc)}
-          onSelect={(incId, val) => setDispatchSelection(p => ({ ...p, [incId]: Number(val) }))}
-          onDispatch={dispatchVehicle}
-          eligibleIds={getEligibleVehicleIds(inc)}
-          vehicles={vehicles}
-          getReason={getVehicleIneligibilityReason}
-          formatSeconds={formatSeconds}
-          onQuickDispatch={onQuickDispatch}
-          getIncidentEdgePercent={getIncidentEdgePercent}
-        />
-      ))}
-    </div>
-  </div>
-)
+  )
+}
 
 export default IncidentsPanel

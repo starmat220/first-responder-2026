@@ -89,6 +89,28 @@ export const useBuildingPlacement = ({
             lockedReason = `Requires ${PROGRESSION_MILESTONES.aviationUnlockAt} resolved calls.`
           }
         }
+        if (
+          type?.category === 'aviation' &&
+          progression?.specializedStationsCount < 2
+        ) {
+          enabled = false
+          lockedReason = 'Requires at least 2 specialized stations before aviation facilities can be deployed.'
+        }
+        if (
+          (building.id === STATION_TYPES.federal_police.id ||
+            building.id === STATION_TYPES.fire_marshal.id) &&
+          progression?.specializedStationsCount < 3
+        ) {
+          enabled = false
+          lockedReason = 'Requires 3 specialized stations to unlock command-grade facilities.'
+        }
+        if (
+          type?.category === 'hub' &&
+          !progression?.departmentReputationUnlocked
+        ) {
+          enabled = false
+          lockedReason = 'Requires Department Reputation milestone before regional hubs unlock.'
+        }
 
         const tierAccess = evaluateBuildingTierAccess({
           building,

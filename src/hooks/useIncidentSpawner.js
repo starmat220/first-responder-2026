@@ -19,6 +19,10 @@ import {
   getWeatherIncidentPressure,
   getWeatherSpawnIntervalMultiplier,
 } from '../game/weather'
+import {
+  getDistrictIdForPosition,
+  getDistrictIncidentModifiers,
+} from '../game/campaign'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -426,6 +430,30 @@ const pickWeightedScenario = (entries, getWeight, rng = Math.random) => {
   return weighted[weighted.length - 1].entry
 }
 
+const pickWeightedDepartment = (
+  departments,
+  departmentWeights = {},
+  rng = Math.random
+) => {
+  if (!Array.isArray(departments) || departments.length === 0) {
+    return DEFAULT_DEPARTMENT_ID
+  }
+  const weighted = departments.map((departmentId) => ({
+    departmentId,
+    weight: Math.max(0.05, Number(departmentWeights?.[departmentId]) || 1),
+  }))
+  const total = weighted.reduce((sum, item) => sum + item.weight, 0)
+  if (total <= 0) {
+    return departments[Math.floor(rng() * departments.length)] || DEFAULT_DEPARTMENT_ID
+  }
+  let roll = rng() * total
+  for (let i = 0; i < weighted.length; i += 1) {
+    roll -= weighted[i].weight
+    if (roll <= 0) return weighted[i].departmentId
+  }
+  return weighted[weighted.length - 1].departmentId
+}
+
 const getScenarioCoastalWeight = (type, coastalBandScore) => {
   const coastal = isCoastalScenario(type)
   if (coastal) {
@@ -667,6 +695,8 @@ export const useIncidentSpawner = ({
   intervalMultiplier = 1,
   maxActiveBias = 0,
   departmentIncidentModifiers = null,
+  campaignDistrictIds = null,
+  onIncidentSpawned = null,
   addRadioLogRef = null,
   liveEvent = null,
 }) => {
@@ -701,6 +731,17 @@ export const useIncidentSpawner = ({
       (Array.isArray(center) && center.length === 2 ? center : [0, 0])
     const inStarterPhase = resolvedCount < STARTER_PHASE_RESOLVED_LIMIT
     const inEarlyPhase = resolvedCount < EARLY_PHASE_RESOLVED_LIMIT
+    const unlockedDistrictIds = Array.isArray(campaignDistrictIds) && campaignDistrictIds.length
+      ? campaignDistrictIds
+      : ['downtown_core']
+    const districtAnchorId = getDistrictIdForPosition(firstStationAnchor, {
+      center,
+      unlockedDistrictIds,
+    })
+    const districtAnchorModifiers = getDistrictIncidentModifiers({
+      districtId: districtAnchorId,
+      weatherCondition: weatherRef.current?.condition,
+    })
 
     // Progressive Department Logic
     const builtDepts = new Set(stationList.map(s => s.department || DEFAULT_DEPARTMENT_ID))
@@ -717,11 +758,17 @@ export const useIncidentSpawner = ({
       const introChance = resolvedCount < EARLY_PHASE_RESOLVED_LIMIT ? 0.06 : INTRO_CHANCE
       const introCandidates = unlockedDepts.filter(d => !builtDepts.has(d))
       if (introCandidates.length > 0 && Math.random() < introChance) {
-        requiredDepartment = introCandidates[Math.floor(Math.random() * introCandidates.length)]
+        requiredDepartment = pickWeightedDepartment(
+          introCandidates,
+          districtAnchorModifiers.departmentWeight
+        )
       } else if (builtDepts.size > 0) {
         // Otherwise, spawn for a built department (Full Throttle)
         const builtDeptsList = Array.from(builtDepts)
-        requiredDepartment = builtDeptsList[Math.floor(Math.random() * builtDeptsList.length)]
+        requiredDepartment = pickWeightedDepartment(
+          builtDeptsList,
+          districtAnchorModifiers.departmentWeight
+        )
       }
     }
     const weatherScenario = inStarterPhase
@@ -781,6 +828,14 @@ export const useIncidentSpawner = ({
       // If we can't find land in 8 tries, skip this spawn cycle to avoid water/islands
       return false
     }
+    const incidentDistrictId = getDistrictIdForPosition(position, {
+      center,
+      unlockedDistrictIds,
+    })
+    const districtIncidentModifiers = getDistrictIncidentModifiers({
+      districtId: incidentDistrictId,
+      weatherCondition: weatherRef.current?.condition,
+    })
 
     const weatherPressure = getWeatherIncidentPressure(weatherRef.current)
     const isMajor =
@@ -900,6 +955,7 @@ export const useIncidentSpawner = ({
       45,
       Math.round(
         priorityConfig.responseTargetSeconds *
+        (districtIncidentModifiers.responseTargetMultiplier || 1) *
         (departmentMods?.responseTargetMultiplier || 1) *
         safeEventResponseMultiplier *
         (1 + weatherPressure * 0.18)
@@ -940,8 +996,12 @@ export const useIncidentSpawner = ({
       requiredDepartment: reqDept,
       coResponseDepartments: coResponseDepts, // New field for multi-agency
       isMajor,
+      districtId: incidentDistrictId,
       rewardMultiplier:
-        (departmentMods?.rewardMultiplier || 1) * rewardMultiplier * eventRewardMultiplier,
+        (districtIncidentModifiers.rewardMultiplier || 1) *
+        (departmentMods?.rewardMultiplier || 1) *
+        rewardMultiplier *
+        eventRewardMultiplier,
       missPenaltyMultiplier: (departmentMods?.missPenaltyMultiplier || 1) * (isMajor ? 2 : 1),
       onSceneDurationSeconds,
       dispatchedAt: null,
@@ -960,6 +1020,7 @@ export const useIncidentSpawner = ({
       incidentsRef.current = next
       return next
     })
+    onIncidentSpawned?.(newIncident)
     return true
   }, [
     incidentRadiusKm,
@@ -975,6 +1036,8 @@ export const useIncidentSpawner = ({
     spawnUnlocks,
     incidentCatalogByDepartment,
     departmentIncidentModifiers,
+    campaignDistrictIds,
+    onIncidentSpawned,
     addRadioLogRef,
     center,
     stationRadiusKm,

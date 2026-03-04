@@ -146,6 +146,7 @@ export const usePersistence = ({
   hasLoadedSave,
   setHasLoadedSave,
   applyDefaultState,
+  migrateLoadedData,
   gameState, // Object containing all values to save
   loadState // Function to set all values from loaded data
 }) => {
@@ -169,14 +170,17 @@ export const usePersistence = ({
       return
     }
     try {
-      loadStateRef.current(loadedData)
+      const migratedData = typeof migrateLoadedData === 'function'
+        ? migrateLoadedData(loadedData)
+        : loadedData
+      loadStateRef.current(migratedData)
     } catch (error) {
       console.warn('Failed to load save data.', error)
       applyDefaultStateRef.current(DEFAULT_STARTUP_STATE)
     } finally {
       setHasLoadedSaveRef.current(true)
     }
-  }, [storageKey])
+  }, [storageKey, migrateLoadedData])
 
   // Save logic
   useEffect(() => {

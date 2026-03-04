@@ -5,6 +5,25 @@ import { PROGRESSION_MILESTONES } from '../game/constants'
 import { DEPARTMENTS } from '../game/departments'
 import '../Theme.css'
 
+const TAB_META = {
+  overview: {
+    label: 'Overview',
+    hint: 'Immediate actions, operational risk, and resource status.',
+  },
+  vehicles: {
+    label: 'Fleet',
+    hint: 'Unit readiness, crew assignment, and response status.',
+  },
+  staffing: {
+    label: 'Personnel',
+    hint: 'Hiring, roster assignment, and shift coverage controls.',
+  },
+  extensions: {
+    label: 'Upgrades',
+    hint: 'Capability upgrades, specialization, and unlock progress.',
+  },
+}
+
 const StatItem = ({ label, value }) => (
   <div className="station-stat-item">
     <span className="station-stat-item__label">{label}</span>
@@ -82,10 +101,78 @@ const StationPanel = ({
     tow: '255, 209, 125',
     public_works: '160, 174, 192',
   }
+  const visibleTabs = ['overview', 'vehicles', 'staffing', 'extensions']
+  const resolvedStationTab = visibleTabs.includes(stationPanelTab)
+    ? stationPanelTab
+    : 'overview'
+  const activeTabMeta = TAB_META[resolvedStationTab] || TAB_META.overview
+  const fleetCapacity = station?.garageCapacity || 3
+  const freeFleetSlots = Math.max(0, fleetCapacity - vehicles.length)
+  const freePersonnelSlots = Math.max(0, personnelCapacity - personnelAssigned)
+  const incidentPressure = stationSummary?.nearbyIncidents || 0
+  const detentionCount = station?.jailCount || 0
+  const detentionCapacity = station?.jailCapacity || 0
+  const detentionLoad = isPolice
+    ? detentionCount / Math.max(1, detentionCapacity || 1)
+    : 0
+  const unitLoad = vehicles.length > 0 ? activeVehicles / vehicles.length : 0
+  const personnelLoad = personnelCapacity > 0 ? personnelAssigned / personnelCapacity : 0
+  const riskSignals = []
+  if (incidentPressure >= 3) riskSignals.push(`High local call pressure (${incidentPressure})`)
+  if (unitLoad > 0.7) riskSignals.push('Most units are committed')
+  if (freePersonnelSlots === 0) riskSignals.push('Personnel at capacity')
+  if (isPolice && detentionLoad >= 0.85) riskSignals.push('Detention nearing capacity')
+  const riskLevel = riskSignals.length >= 3 ? 'High' : riskSignals.length > 0 ? 'Elevated' : 'Stable'
+  const activeSpecialization = (specializationOptions || []).find(
+    (item) => item.id === (station?.specialization || 'standard')
+  )
+
+  const quickActions = [
+    {
+      id: 'hire',
+      label: 'Hire +1',
+      onClick: onHirePersonnel,
+      disabled: personnelAssigned >= personnelCapacity,
+      variant: 'primary',
+      title:
+        personnelAssigned >= personnelCapacity
+          ? 'Personnel capacity reached. Expand personnel capacity first.'
+          : `Hire personnel ($${personnelHireCost})`,
+    },
+    {
+      id: 'garage',
+      label: 'Expand Garage',
+      onClick: handleGarageUpgrade,
+      disabled: false,
+      variant: 'ghost',
+      title: `Expand garage ($${garageUpgradeCost})`,
+    },
+    {
+      id: 'hq',
+      label: 'Upgrade HQ',
+      onClick: handleHQUpgrade,
+      disabled: false,
+      variant: 'ghost',
+      title: `Upgrade station HQ ($${hqUpgradeCost})`,
+    },
+  ]
+  if (isPolice) {
+    quickActions.push({
+      id: 'detention',
+      label: 'Transfer Intake',
+      onClick: onTransferDetention,
+      disabled: detentionCount <= 0,
+      variant: 'ghost',
+      title:
+        detentionCount <= 0
+          ? 'No detainees waiting transfer'
+          : 'Transfer detainees to prison facility',
+    })
+  }
 
   return (
     <div
-      className="panel-content-only station-panel-content"
+      className="panel-content-only station-panel-content menu-shell"
       style={{
         '--station-accent-rgb': DEPT_RGB[departmentId] || DEPT_RGB.police,
         display: 'flex',
@@ -131,153 +218,152 @@ const StationPanel = ({
       </div>
 
       {/* 3. Navigation Tabs */}
-      <div className="tabs tabs--inner" style={{ marginBottom: '16px' }}>
-        <button className={`tab ${stationPanelTab === 'overview' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('overview')}>Overview</button>
-        <button className={`tab ${stationPanelTab === 'vehicles' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('vehicles')}>Fleet</button>
-        <button className={`tab ${stationPanelTab === 'staffing' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('staffing')}>Personnel</button>
-        {isPolice && <button className={`tab ${stationPanelTab === 'detention' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('detention')}>Detention</button>}
-        <button className={`tab ${stationPanelTab === 'extensions' ? 'tab--active' : ''}`} onClick={() => setStationPanelTab('extensions')}>Upgrades</button>
+      <div className="menu-tab-rail menu-tab-rail--station" style={{ marginBottom: '6px' }}>
+        {visibleTabs.map((tabId) => (
+          <button
+            key={tabId}
+            className={`menu-tab ${resolvedStationTab === tabId ? 'menu-tab--active' : ''}`}
+            onClick={() => setStationPanelTab(tabId)}
+          >
+            {TAB_META[tabId].label}
+          </button>
+        ))}
       </div>
+      <p className="menu-shell__hint">{activeTabMeta.hint}</p>
 
       {/* 4. Content Area */}
       <div className="list-container station-content" style={{ padding: '0' }}>
-        {stationPanelTab === 'overview' && (
+        {resolvedStationTab === 'overview' && (
           <div className="department-module">
-            {/* Left Column: Department Specific */}
             <div style={{ display: 'grid', gap: '16px' }}>
-              {isPolice && (
-                <ModuleCard title="Booking & Detention" action={<button className="cmd-btn cmd-btn--small" onClick={onTransferDetention}>Transfer</button>}>
-                  <div className="station-kpi">
-                    <p className="station-kpi__label">Short-term Cells</p>
-                    <p className="station-kpi__value">{station?.jailCount || 0} / {station?.jailCapacity || 4}</p>
-                  </div>
-                  <div className="station-list station-list--compact" style={{ marginTop: '8px' }}>
-                    {station?.detentionLog?.slice(0, 3).map(log => (
-                      <div key={log.id} className="station-list__row">
-                        <span>{log.type}</span>
-                        <span className="muted">{log.time}</span>
-                      </div>
-                    ))}
-                  </div>
-                </ModuleCard>
-              )}
-
-              {isFire && (
-                <ModuleCard title="Fireground Command">
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    <div className="station-kpi">
-                      <p className="station-kpi__label">Active Hydrants in Range</p>
-                      <p className="station-kpi__value">12</p>
-                    </div>
-                    <div className="station-kpi">
-                      <p className="station-kpi__label">Water Reserve</p>
-                      <p className="station-kpi__value">100%</p>
-                    </div>
-                  </div>
-                </ModuleCard>
-              )}
-
-              {isEms && (
-                <ModuleCard title="Triage Center">
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    <div className="station-kpi">
-                      <p className="station-kpi__label">Critical Transports</p>
-                      <p className="station-kpi__value">0</p>
-                    </div>
-                    <div className="station-kpi">
-                      <p className="station-kpi__label">Medical Supplies</p>
-                      <p className="station-kpi__value">Stocked</p>
-                    </div>
-                  </div>
-                </ModuleCard>
-              )}
-
-              {isPW && (
-                <ModuleCard title="City Infrastructure">
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    <div className="station-kpi">
-                      <p className="station-kpi__label">Grid Status</p>
-                      <p className="station-kpi__value">Stable</p>
-                    </div>
-                    <div className="station-kpi">
-                      <p className="station-kpi__label">Material Stockpile</p>
-                      <p className="station-kpi__value">94%</p>
-                    </div>
-                  </div>
-                </ModuleCard>
-              )}
-
-              <ModuleCard title="Procurement">
-                <div className="procurement-row">
-                  {availableUnits?.map((unit) => (
-                    <div key={unit.id} className="procurement-btn" onClick={() => handleBuyVehicle(unit.id)}>
-                      <span className="procurement-btn__label">{unit.label}</span>
-                      <span className="procurement-btn__cost">${unitTypes[unit.id]?.cost ?? unit.cost}</span>
-                    </div>
+              <ModuleCard title="Immediate Actions">
+                <div className="station-action-row">
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.id}
+                      className={`cmd-btn cmd-btn--small ${action.variant === 'primary' ? 'cmd-btn--primary' : 'cmd-btn--ghost'}`}
+                      onClick={action.onClick}
+                      disabled={action.disabled}
+                      title={action.title}
+                    >
+                      {action.label}
+                    </button>
                   ))}
+                </div>
+                <div className="station-grid" style={{ marginTop: '10px' }}>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Command Focus</p>
+                    <p className="muted">
+                      {isPolice && 'Patrol coverage and custody flow management.'}
+                      {isFire && 'Suppression readiness and rapid apparatus deployment.'}
+                      {isEms && 'Patient stabilization and transport continuity.'}
+                      {isTow && 'Clearance flow and roadway recovery throughput.'}
+                      {isPW && 'Infrastructure continuity and utility response readiness.'}
+                    </p>
+                  </div>
+                </div>
+              </ModuleCard>
+
+              <ModuleCard title="Procurement" action={<span className="muted">{freeFleetSlots} slots free</span>}>
+                <div className="procurement-row">
+                  {(availableUnits || []).length > 0 ? (
+                    availableUnits.map((unit) => (
+                      <button
+                        key={unit.id}
+                        className="procurement-btn"
+                        onClick={() => handleBuyVehicle(unit.id)}
+                        disabled={freeFleetSlots <= 0}
+                        title={
+                          freeFleetSlots <= 0
+                            ? 'No garage slots available. Expand garage first.'
+                            : `Purchase ${unit.label}`
+                        }
+                      >
+                        <span className="procurement-btn__label">{unit.label}</span>
+                        <span className="procurement-btn__cost">${unitTypes[unit.id]?.cost ?? unit.cost}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="muted">No additional unit types are available yet.</p>
+                  )}
                 </div>
               </ModuleCard>
             </div>
 
-            {/* Right Column: General Ops */}
             <div style={{ display: 'grid', gap: '16px' }}>
-              <ModuleCard title="Operations Status">
-                <div className="station-grid">
+              <ModuleCard
+                title="Operational Risk"
+                action={
+                  <span className="station-pill">
+                    {riskLevel}
+                  </span>
+                }
+              >
+                <div className="station-grid" style={{ marginBottom: '8px' }}>
                   <div className="station-tile">
-                    <p className="station-tile__title">Active Calls</p>
-                    <p className="muted">{stationSummary?.nearbyIncidents || 0} in sector</p>
+                    <p className="station-tile__title">Incident Pressure</p>
+                    <p className="muted">{incidentPressure} active calls in sector</p>
                   </div>
                   <div className="station-tile">
                     <p className="station-tile__title">Unit Utilization</p>
-                    <p className="muted">{activeVehicles} responding</p>
+                    <p className="muted">{Math.round(unitLoad * 100)}% committed ({activeVehicles}/{Math.max(1, vehicles.length)})</p>
                   </div>
+                  <div className={`station-tile ${isPolice && detentionLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
+                    <p className="station-tile__title">Personnel Load</p>
+                    <p className="muted">{Math.round(personnelLoad * 100)}% staffed ({personnelAssigned}/{personnelCapacity})</p>
+                  </div>
+                </div>
+                <div className="station-list station-list--compact">
+                  {riskSignals.length > 0 ? (
+                    riskSignals.map((signal) => (
+                      <div key={signal} className="station-list__row">
+                        <span>{signal}</span>
+                        <span className="muted">Monitor</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="station-list__row">
+                      <span>No active risk signals</span>
+                      <span className="muted">Stable</span>
+                    </div>
+                  )}
                 </div>
               </ModuleCard>
 
-              <ModuleCard title="Facility Management">
-                <div style={{ display: 'grid', gap: '8px' }}>
-                  <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleGarageUpgrade}>Expand Garage (${garageUpgradeCost})</button>
-                  <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleHQUpgrade}>Upgrade Station HQ (${hqUpgradeCost})</button>
-                  <button className="cmd-btn cmd-btn--urgent cmd-btn--small" style={{ marginTop: '8px' }} onClick={() => {
-                    if (window.confirm(`Decommission ${station.name}?`)) onDeleteStation()
-                  }}>Decommission Station</button>
-                </div>
-              </ModuleCard>
-              <ModuleCard title="Specialization Doctrine">
-                {specializationDoctrineUnlocked ? (
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    <select
-                      className="cmd-select"
-                      value={station?.specialization || 'standard'}
-                      onChange={(event) => onUpdateSpecialization?.(event.target.value)}
-                    >
-                      {(specializationOptions || []).map((item) => (
-                        <option
-                          key={item.id}
-                          value={item.id}
-                          disabled={!item.unlocked}
-                        >
-                          {item.unlocked ? item.label : `${item.label} (Locked)`}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="muted" style={{ fontSize: '0.66rem' }}>
-                      {(specializationOptions || []).find(
-                        (item) => item.id === (station?.specialization || 'standard')
-                      )?.description || 'Balanced station operations profile.'}
-                    </p>
+              <ModuleCard title="Resources">
+                <div className="station-grid">
+                  <div className="station-tile">
+                    <p className="station-tile__title">Ready Units</p>
+                    <p className="muted">{availableCount} available now</p>
                   </div>
-                ) : (
-                  <p className="muted">
-                    Unlock specialization doctrine through progression milestones.
+                  <div className="station-tile">
+                    <p className="station-tile__title">Garage Capacity</p>
+                    <p className="muted">{vehicles.length}/{fleetCapacity} ({freeFleetSlots} free)</p>
+                  </div>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Personnel Slots</p>
+                    <p className="muted">{personnelAssigned}/{personnelCapacity} ({freePersonnelSlots} open)</p>
+                  </div>
+                  {isPolice && (
+                    <div className={`station-tile ${detentionLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
+                      <p className="station-tile__title">Detention Capacity</p>
+                      <p className="muted">{detentionCount}/{detentionCapacity || 0} in holding</p>
+                    </div>
+                  )}
+                </div>
+                <div className="station-kpi" style={{ marginTop: '8px' }}>
+                  <p className="station-kpi__label">Active Doctrine</p>
+                  <p className="station-kpi__value">{activeSpecialization?.label || 'Standard Operations'}</p>
+                  <p className="muted" style={{ margin: 0, fontSize: '0.64rem' }}>
+                    {activeSpecialization?.description || 'Balanced station operations profile.'}
                   </p>
-                )}
+                </div>
               </ModuleCard>
             </div>
           </div>
         )}
 
-        {stationPanelTab === 'vehicles' && (
+        {resolvedStationTab === 'vehicles' && (
           <FleetPanel
             vehicles={vehicles}
             formatSeconds={formatSeconds}
@@ -288,7 +374,7 @@ const StationPanel = ({
           />
         )}
 
-        {stationPanelTab === 'staffing' && (
+        {resolvedStationTab === 'staffing' && (
           <div style={{ display: 'grid', gap: '16px' }}>
             <ModuleCard title="Recruitment Center">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -332,91 +418,145 @@ const StationPanel = ({
           </div>
         )}
 
-        {stationPanelTab === 'extensions' && (
+        {resolvedStationTab === 'extensions' && (
           <div className="department-module">
-            <ModuleCard title="Technical Upgrades">
-              <div style={{ display: 'grid', gap: '8px' }}>
-                <div className="station-tile">
-                  <p className="station-tile__title">Training Academy</p>
-                  <p className="muted">Reduces fatigue accumulation for all stationed units.</p>
-                  <button className="cmd-btn cmd-btn--small" onClick={onTrainingUpgrade}>Upgrade (${trainingUpgradeCost})</button>
-                </div>
-                {isPolice && (
+            <div style={{ display: 'grid', gap: '16px' }}>
+              <ModuleCard title="Technical Upgrades">
+                <div style={{ display: 'grid', gap: '8px' }}>
                   <div className="station-tile">
-                    <p className="station-tile__title">K-9 Kennel</p>
-                    <p className="muted">Houses K-9 units for search and rescue operations.</p>
-                    {station.hasKennel ? (
-                      <button className="cmd-btn cmd-btn--small" disabled style={{ opacity: 0.7 }}>ACTIVE</button>
-                    ) : (
-                      <button className="cmd-btn cmd-btn--small" onClick={onKennelUpgrade}>Construct (${kennelUpgradeCost})</button>
-                    )}
+                    <p className="station-tile__title">Training Academy</p>
+                    <p className="muted">Reduces fatigue accumulation for all stationed units.</p>
+                    <button className="cmd-btn cmd-btn--small" onClick={onTrainingUpgrade}>Upgrade (${trainingUpgradeCost})</button>
+                  </div>
+                  {isPolice && (
+                    <div className="station-tile">
+                      <p className="station-tile__title">K-9 Kennel</p>
+                      <p className="muted">Houses K-9 units for search and rescue operations.</p>
+                      {station.hasKennel ? (
+                        <button className="cmd-btn cmd-btn--small" disabled style={{ opacity: 0.7 }}>ACTIVE</button>
+                      ) : (
+                        <button className="cmd-btn cmd-btn--small" onClick={onKennelUpgrade}>Construct (${kennelUpgradeCost})</button>
+                      )}
+                    </div>
+                  )}
+                  {isFire && (
+                    <div className="station-tile">
+                      <p className="station-tile__title">Apparatus Refit Bay</p>
+                      <p className="muted">Reduces turnaround (cooldown) time by 20%.</p>
+                      <button className="cmd-btn cmd-btn--small" disabled>UPGRADED</button>
+                    </div>
+                  )}
+                  {isEms && (
+                    <div className="station-tile">
+                      <p className="station-tile__title">Med-Link Telemetry</p>
+                      <p className="muted">Increases resolution rewards by 10%.</p>
+                      <button className="cmd-btn cmd-btn--small" disabled>ACTIVE</button>
+                    </div>
+                  )}
+                  {isTow && (
+                    <div className="station-tile">
+                      <p className="station-tile__title">Heavy Lift Cert</p>
+                      <p className="muted">Unlocks specialized recovery equipment.</p>
+                      <button className="cmd-btn cmd-btn--small" disabled>CERTIFIED</button>
+                    </div>
+                  )}
+                </div>
+              </ModuleCard>
+
+              <ModuleCard title="Operational Perks">
+                {isPolice && (
+                  <div style={{ display: 'grid', gap: '4px' }}>
+                    <span className="status-badge" style={{ borderColor: 'var(--color-police)', color: 'var(--color-police)' }}>Traffic Unit</span>
+                    <p className="muted" style={{ fontSize: '0.65rem' }}>
+                      {progression.trafficUnitUnlocked
+                        ? 'STATION AUTHORIZED'
+                        : `Resolve ${PROGRESSION_MILESTONES.trafficUnitUnlockedAt} calls to unlock`}
+                    </p>
                   </div>
                 )}
                 {isFire && (
-                  <div className="station-tile">
-                    <p className="station-tile__title">Apparatus Refit Bay</p>
-                    <p className="muted">Reduces turnaround (cooldown) time by 20%.</p>
-                    <button className="cmd-btn cmd-btn--small" disabled>UPGRADED</button>
+                  <div style={{ display: 'grid', gap: '4px' }}>
+                    <span className="status-badge" style={{ borderColor: 'var(--color-fire)', color: 'var(--color-fire)' }}>Ladder Company</span>
+                    <p className="muted" style={{ fontSize: '0.65rem' }}>
+                      {progression.fireRescueUnlocked
+                        ? 'UNIT UNLOCKED'
+                        : `Resolve ${PROGRESSION_MILESTONES.fireRescueUnlockedAt} fire calls`}
+                    </p>
                   </div>
                 )}
                 {isEms && (
-                  <div className="station-tile">
-                    <p className="station-tile__title">Med-Link Telemetry</p>
-                    <p className="muted">Increases resolution rewards by 10%.</p>
-                    <button className="cmd-btn cmd-btn--small" disabled>ACTIVE</button>
+                  <div style={{ display: 'grid', gap: '4px' }}>
+                    <span className="status-badge" style={{ borderColor: 'var(--color-ems)', color: 'var(--color-ems)' }}>ALS Care</span>
+                    <p className="muted" style={{ fontSize: '0.65rem' }}>
+                      {progression.emsAdvancedCareUnlocked
+                        ? 'CERTIFIED'
+                        : `Resolve ${PROGRESSION_MILESTONES.emsAdvancedCareUnlockedAt} EMS calls`}
+                    </p>
                   </div>
                 )}
                 {isTow && (
-                  <div className="station-tile">
-                    <p className="station-tile__title">Heavy Lift Cert</p>
-                    <p className="muted">Unlocks specialized recovery equipment.</p>
-                    <button className="cmd-btn cmd-btn--small" disabled>CERTIFIED</button>
+                  <div style={{ display: 'grid', gap: '4px' }}>
+                    <span className="status-badge" style={{ borderColor: 'var(--color-tow)', color: 'var(--color-tow)' }}>Impound Lot</span>
+                    <p className="muted" style={{ fontSize: '0.65rem' }}>
+                      {progression.towHeavyRecoveryUnlocked
+                        ? 'REVENUE ACTIVE'
+                        : `Resolve ${PROGRESSION_MILESTONES.towHeavyRecoveryUnlockedAt} tow calls`}
+                    </p>
                   </div>
                 )}
-              </div>
-            </ModuleCard>
-            <ModuleCard title="Operational Perks">
-              {isPolice && (
-                <div style={{ display: 'grid', gap: '4px' }}>
-                  <span className="status-badge" style={{ borderColor: 'var(--color-police)', color: 'var(--color-police)' }}>Traffic Unit</span>
-                  <p className="muted" style={{ fontSize: '0.65rem' }}>
-                    {progression.trafficUnitUnlocked
-                      ? 'STATION AUTHORIZED'
-                      : `Resolve ${PROGRESSION_MILESTONES.trafficUnitUnlockedAt} calls to unlock`}
-                  </p>
+              </ModuleCard>
+            </div>
+
+            <div style={{ display: 'grid', gap: '16px' }}>
+              <ModuleCard title="Facility Management">
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleGarageUpgrade}>
+                    Expand Garage (${garageUpgradeCost})
+                  </button>
+                  <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleHQUpgrade}>
+                    Upgrade Station HQ (${hqUpgradeCost})
+                  </button>
+                  <button
+                    className="cmd-btn cmd-btn--urgent cmd-btn--small"
+                    style={{ marginTop: '8px' }}
+                    onClick={() => {
+                      if (window.confirm(`Decommission ${station.name}?`)) onDeleteStation()
+                    }}
+                  >
+                    Decommission Station
+                  </button>
                 </div>
-              )}
-              {isFire && (
-                <div style={{ display: 'grid', gap: '4px' }}>
-                  <span className="status-badge" style={{ borderColor: 'var(--color-fire)', color: 'var(--color-fire)' }}>Ladder Company</span>
-                  <p className="muted" style={{ fontSize: '0.65rem' }}>
-                    {progression.fireRescueUnlocked
-                      ? 'UNIT UNLOCKED'
-                      : `Resolve ${PROGRESSION_MILESTONES.fireRescueUnlockedAt} fire calls`}
+              </ModuleCard>
+
+              <ModuleCard title="Specialization Doctrine">
+                {specializationDoctrineUnlocked ? (
+                  <div style={{ display: 'grid', gap: '8px' }}>
+                    <select
+                      className="cmd-select"
+                      value={station?.specialization || 'standard'}
+                      onChange={(event) => onUpdateSpecialization?.(event.target.value)}
+                    >
+                      {(specializationOptions || []).map((item) => (
+                        <option
+                          key={item.id}
+                          value={item.id}
+                          disabled={!item.unlocked}
+                        >
+                          {item.unlocked ? item.label : `${item.label} (Locked)`}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="muted" style={{ fontSize: '0.66rem', margin: 0 }}>
+                      {activeSpecialization?.description || 'Balanced station operations profile.'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="muted">
+                    Unlock specialization doctrine through progression milestones.
                   </p>
-                </div>
-              )}
-              {isEms && (
-                <div style={{ display: 'grid', gap: '4px' }}>
-                  <span className="status-badge" style={{ borderColor: 'var(--color-ems)', color: 'var(--color-ems)' }}>ALS Care</span>
-                  <p className="muted" style={{ fontSize: '0.65rem' }}>
-                    {progression.emsAdvancedCareUnlocked
-                      ? 'CERTIFIED'
-                      : `Resolve ${PROGRESSION_MILESTONES.emsAdvancedCareUnlockedAt} EMS calls`}
-                  </p>
-                </div>
-              )}
-              {isTow && (
-                <div style={{ display: 'grid', gap: '4px' }}>
-                  <span className="status-badge" style={{ borderColor: 'var(--color-tow)', color: 'var(--color-tow)' }}>Impound Lot</span>
-                  <p className="muted" style={{ fontSize: '0.65rem' }}>
-                    {progression.towHeavyRecoveryUnlocked
-                      ? 'REVENUE ACTIVE'
-                      : `Resolve ${PROGRESSION_MILESTONES.towHeavyRecoveryUnlockedAt} tow calls`}
-                  </p>
-                </div>
-              )}
-            </ModuleCard>
+                )}
+              </ModuleCard>
+            </div>
           </div>
         )}
       </div>

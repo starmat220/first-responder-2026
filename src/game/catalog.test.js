@@ -33,6 +33,24 @@ describe('department catalog core', () => {
     expect(isUnitUnlocked(traffic, { trafficUnitUnlocked: true })).toBe(true)
   })
 
+  it('evaluates advanced unlock requirements', () => {
+    const helicopter = getUnitById('police_helicopter')
+    const locked = isUnitUnlocked(helicopter, {
+      resolvedCount: 60,
+      playerLevel: 7,
+      liveOpsNetworkUnlocked: false,
+      specializedStationsCount: 3,
+    })
+    const unlocked = isUnitUnlocked(helicopter, {
+      resolvedCount: 60,
+      playerLevel: 7,
+      liveOpsNetworkUnlocked: true,
+      specializedStationsCount: 3,
+    })
+    expect(locked).toBe(false)
+    expect(unlocked).toBe(true)
+  })
+
   it('contains multi-department building catalog entries', () => {
     const departments = new Set(BUILDING_CATALOG.map((entry) => entry.department).filter(Boolean))
     expect(departments.has(DEPARTMENTS.police.id)).toBe(true)

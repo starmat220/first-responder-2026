@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "balance:sim": "node scripts/balance-sim.mjs"
+    "balance:sim": "node scripts/balance-sim.mjs",
+    "release:playtest": "node scripts/playtest-release.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

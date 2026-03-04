@@ -30,12 +30,14 @@ const Topbar = ({
   playerAvatar,
   missionDayKey,
   weatherSummary,
+  weatherTemperatureLabel,
   weatherNextUpdateLabel,
   weatherLocationLabel,
   weatherLocalTimeLabel,
   weatherTimezoneLabel,
   operationsPhase,
   liveEventStatusLabel,
+  campaignStatusLabel,
   departmentReputationLabel,
   mutualAidLabel,
   mutualAidDisabled,
@@ -49,6 +51,7 @@ const Topbar = ({
     second: '2-digit',
   })
   const weatherLabel = weatherSummary || 'Clear 20C'
+  const weatherTempLabel = weatherTemperatureLabel || weatherLabel
   const weatherEtaLabel = weatherNextUpdateLabel || '--:--'
   const weatherAreaLabel = weatherLocationLabel || 'Local'
   const weatherClockLabel = weatherLocalTimeLabel
@@ -57,6 +60,11 @@ const Topbar = ({
   const dayLabel = missionDayKey || 'DAY-01'
   const phaseLabel = operationsPhase || 'BASIC OPS'
   const liveEventLabel = liveEventStatusLabel || 'No active regional event'
+  const liveEventIsActive =
+    !/no active regional event/i.test(liveEventLabel) &&
+    !/locked/i.test(liveEventLabel)
+  const liveEventShortLabel = liveEventIsActive ? 'ACTIVE' : 'NONE'
+  const campaignLabel = campaignStatusLabel || 'Campaign initializing'
   const reputationLabel = departmentReputationLabel || 'Reputation locked'
   const selectedBuildOption =
     buildOptions.find((item) => item.id === placingBuildingType) || buildOptions[0] || null
@@ -91,9 +99,11 @@ const Topbar = ({
         </div>
         <div className="hud-weather">
           <span className="label">WX · {dayLabel} · {weatherAreaLabel}</span>
-          <span className="value">{weatherLabel} · {weatherClockLabel} · NX {weatherEtaLabel}</span>
-          <span className="value" style={{ fontSize: '0.66rem', opacity: 0.9 }}>
-            EVENT: {liveEventLabel} · REP: {reputationLabel}
+          <span
+            className="value"
+            title={`${weatherLabel} · ${weatherClockLabel} · NX ${weatherEtaLabel}`}
+          >
+            {weatherTempLabel}
           </span>
         </div>
       </div>
@@ -126,6 +136,15 @@ const Topbar = ({
         <div className="hud-stat">
           <span className="label">ACTIVE</span>
           <span className="value">{activeIncidentCount}</span>
+        </div>
+        <div className="hud-stat" title={`EVENT: ${liveEventLabel} · ${campaignLabel} · ${reputationLabel}`}>
+          <span className="label">EVENT</span>
+          <span
+            className="value"
+            style={{ color: liveEventIsActive ? 'var(--color-urgent)' : 'var(--color-text-muted)' }}
+          >
+            {liveEventShortLabel}
+          </span>
         </div>
         <div className="hud-stat">
           <span className="label">FLEET</span>
@@ -181,7 +200,7 @@ const Topbar = ({
         >
           {mutualAidLabel || 'BACKUP'}
         </button>
-        <button className="cmd-btn" onClick={onReportBug}>REPORT</button>
+        <button className="cmd-btn" onClick={onReportBug}>FEEDBACK</button>
 
         <select
           className="cmd-select cmd-select--slot"

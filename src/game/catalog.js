@@ -37,6 +37,10 @@ export const UNIT_CATALOG = [
     cost: 600,
     baseSpeed: 60,
     unlockKey: 'supervisorUnlocked',
+    unlockRequirements: {
+      requiredHook: 'specializationDoctrineUnlocked',
+      requiredSpecializationAssignments: 1,
+    },
   },
   {
     id: 'engine',
@@ -74,6 +78,12 @@ export const UNIT_CATALOG = [
     cost: 1500,
     baseSpeed: 120, // Very fast
     isAviation: true,
+    unlockRequirements: {
+      minLevel: 6,
+      minResolved: 32,
+      requiredHook: 'liveOpsNetworkUnlocked',
+      requiredSpecializationAssignments: 2,
+    },
   },
   {
     id: 'med_helicopter',
@@ -83,6 +93,12 @@ export const UNIT_CATALOG = [
     cost: 1500,
     baseSpeed: 130,
     isAviation: true,
+    unlockRequirements: {
+      minLevel: 6,
+      minResolved: 34,
+      requiredHook: 'liveOpsNetworkUnlocked',
+      requiredSpecializationAssignments: 2,
+    },
   },
   {
     id: 'fire_plane',
@@ -92,6 +108,12 @@ export const UNIT_CATALOG = [
     cost: 2000,
     baseSpeed: 150,
     isAviation: true,
+    unlockRequirements: {
+      minLevel: 7,
+      minResolved: 40,
+      requiredHook: 'liveOpsNetworkUnlocked',
+      requiredSpecializationAssignments: 3,
+    },
   },
   {
     id: 'rescue_boat',
@@ -101,6 +123,12 @@ export const UNIT_CATALOG = [
     cost: 800,
     baseSpeed: 40,
     isWater: true,
+    unlockRequirements: {
+      minLevel: 5,
+      minResolved: 26,
+      requiredHook: 'incidentChainProtocolUnlocked',
+      requiredSpecializationAssignments: 1,
+    },
   },
   {
     id: 'fire_boat',
@@ -110,6 +138,12 @@ export const UNIT_CATALOG = [
     cost: 1000,
     baseSpeed: 35,
     isWater: true,
+    unlockRequirements: {
+      minLevel: 6,
+      minResolved: 30,
+      requiredHook: 'incidentChainProtocolUnlocked',
+      requiredSpecializationAssignments: 2,
+    },
   },
   {
     id: 'utility_truck',
@@ -128,6 +162,12 @@ export const UNIT_CATALOG = [
     cost: 1200,
     baseSpeed: 30,
     unlockKey: 'heavyMachineryUnlocked',
+    unlockRequirements: {
+      minLevel: 7,
+      minResolved: 44,
+      requiredHook: 'liveOpsNetworkUnlocked',
+      requiredSpecializationAssignments: 2,
+    },
   },
 ]
 
@@ -186,4 +226,26 @@ export const toUnitTypeMap = (departmentId = DEPARTMENTS.police.id) =>
   )
 
 export const isUnitUnlocked = (unit, progression = {}) =>
-  !unit.unlockKey || Boolean(progression[unit.unlockKey])
+  (() => {
+    if (unit.unlockKey && !progression[unit.unlockKey]) return false
+    const requirements = unit.unlockRequirements || {}
+    if ((Number(requirements.minResolved) || 0) > (Number(progression.resolvedCount) || 0)) {
+      return false
+    }
+    if ((Number(requirements.minLevel) || 0) > (Number(progression.playerLevel) || 1)) {
+      return false
+    }
+    if (
+      requirements.requiredHook &&
+      !progression[requirements.requiredHook]
+    ) {
+      return false
+    }
+    if (
+      (Number(requirements.requiredSpecializationAssignments) || 0) >
+      (Number(progression.specializedStationsCount) || 0)
+    ) {
+      return false
+    }
+    return true
+  })()

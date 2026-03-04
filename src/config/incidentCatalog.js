@@ -46,6 +46,16 @@ export const ADDITIONAL_POLICE_INCIDENT_TYPES = [
   'Power Outage Neighborhood Patrol',
   'Port Security Disturbance',
   'Ferry Terminal Crowd Control',
+  'Tourist District Theft Pattern',
+  'Transit Fare Evasion Sweep',
+  'Illegal Drone Near Air Corridor',
+  'Harborfront Disturbance (Night)',
+  'Critical Infrastructure Trespass',
+  'Missing Child (Festival Grounds)',
+  'Unsafe Boating Enforcement',
+  'Bridge Jumper Negotiation',
+  'Counterfeit Ring Surveillance',
+  'Hospital Security Assist',
   // Legacy/compat names kept for existing logic/tests.
   'School lockdown assist',
   'Demonstration against the construction of a highway project',
@@ -106,6 +116,16 @@ export const FIRE_INCIDENT_TYPES = [
   'Ferry Terminal Fire Alarm',
   'Generator Fire (Extended Outage)',
   'Snow Load Roof Collapse Risk',
+  'Warehouse Sprinkler Failure',
+  'Tunnel Ventilation Fire Alarm',
+  'Solar Farm Inverter Fire',
+  'Rail Yard Transformer Fire',
+  'Emergency Landing Standby',
+  'Post-Blast Structural Shoring',
+  'Battery Storage Fire Event',
+  'Wind Turbine Nacelle Fire',
+  'Harbor Fuel Spill Ignition Risk',
+  'Festival Stage Electrical Fire',
 ]
 
 export const EMS_INCIDENT_TYPES = [
@@ -158,6 +178,16 @@ export const EMS_INCIDENT_TYPES = [
   'Ice-Related Fall (Harbor Walk)',
   'Cold-Water Immersion Rescue',
   'Severe Wind Debris Injury',
+  'Mass Dehydration Event (Festival)',
+  'Cold Exposure (Power Outage)',
+  'Public Shelter Medical Triage',
+  'Industrial Inhalation Exposure',
+  'Pediatric Seizure (School)',
+  'Nursing Home Lift Assist',
+  'Bridge Multi-Patient Collision',
+  'Boat Propeller Trauma',
+  'Hyperthermia (Vehicle Entrapment)',
+  'Toxic Fume Exposure (Warehouse)',
 ]
 
 export const TOW_INCIDENT_TYPES = [
@@ -204,6 +234,16 @@ export const TOW_INCIDENT_TYPES = [
   'Black Ice Multi-Car Tow',
   'Snowbank Entrapment Recovery',
   'Coastal Route Closure Tow Support',
+  'Heavy Equipment Recovery (Construction)',
+  'Electric Vehicle Thermal Tow',
+  'Underground Garage Extraction',
+  'Bridge Deck Disabled Convoy',
+  'Jackknifed Trailer (Snow Squall)',
+  'Harbor Crane Vehicle Recovery',
+  'Storm Debris Entangled Axle',
+  'Commercial Fleet Breakdown Cluster',
+  'Medical Transport Escort Tow',
+  'Tunnel Stall Immediate Clearance',
 ]
 
 export const PW_INCIDENT_TYPES = [
@@ -243,6 +283,16 @@ export const PW_INCIDENT_TYPES = [
   'Flash Freeze Brine Deployment',
   'Causeway Snow Drift Clearance',
   'Sea Spray Ice Control',
+  'Emergency Generator Fuel Logistics',
+  'Temporary Shelter Site Setup',
+  'Post-Flood Mold Mitigation Support',
+  'Landslide Early Warning Barricade',
+  'Emergency Water Distribution Point',
+  'Coastal Erosion Rapid Assessment',
+  'Bridge Joint Ice Expansion Check',
+  'Critical Route Traffic Cone Deployment',
+  'Substation Access Snow Clearance',
+  'Salt Dome Supply Transfer',
 ]
 
 export const INCIDENT_TYPES_BY_DEPARTMENT = {

@@ -103,7 +103,8 @@ export const GRADE_MULTIPLIERS = {
 }
 export const ETA_LABEL_LIMIT = 599
 export const STORAGE_KEY = 'fr2026.save.v2'
-export const SAVE_SCHEMA_VERSION = 3
+export const SAVE_SCHEMA_VERSION = 4
+export const APP_VERSION = '0.9.0'
 
 export const VEHICLE_STATUS = {
   available: 'available',
@@ -222,7 +223,39 @@ export const CHAINED_EVENTS = {
   'Armed Robbery': [
     { type: 'Evidence Search', chance: 0.5, department: 'police', needsK9: true },
     { type: 'Victim Assistance', chance: 0.3, department: 'ems' }
-  ]
+  ],
+  'Vehicle pursuit': [
+    { type: 'Road hazard mitigation', chance: 0.45, department: 'tow' },
+    { type: 'Officer Needs Assistance (10-78)', chance: 0.25, department: 'police' },
+  ],
+  'Multi-vehicle collision': [
+    { type: 'Motor Vehicle Crash (Injuries)', chance: 0.5, department: 'ems' },
+    { type: 'Roadway Obstruction (Debris)', chance: 0.6, department: 'tow' },
+  ],
+  'Wildland Fire (Wind Driven)': [
+    { type: 'Evacuation support', chance: 0.35, department: 'police' },
+    { type: 'Air quality medical checks', chance: 0.3, department: 'ems' },
+  ],
+  'Downed power lines': [
+    { type: 'Power outage neighborhood patrol', chance: 0.45, department: 'police' },
+    { type: 'Electrocution (Downed Line)', chance: 0.28, department: 'ems' },
+  ],
+  'Flooded intersection': [
+    { type: 'Flood-Stalled Vehicle Recovery', chance: 0.55, department: 'tow' },
+    { type: 'Storm Drain Overflow Response', chance: 0.35, department: 'public_works' },
+  ],
+  'Heat exhaustion': [
+    { type: 'Cooling shelter standby', chance: 0.55, department: 'ems' },
+    { type: 'Water distribution point support', chance: 0.25, department: 'public_works' },
+  ],
+  'Hypothermia / Cold Exposure': [
+    { type: 'Shelter transfer assist', chance: 0.45, department: 'ems' },
+    { type: 'Snow route obstruction', chance: 0.3, department: 'public_works' },
+  ],
+  'Pothole Repair (Major Artery)': [
+    { type: 'Traffic flow restoration', chance: 0.42, department: 'tow' },
+    { type: 'Bridge icing traffic control', chance: 0.25, department: 'police' },
+  ],
 }
 
 export const TITLES = ['COMMANDER', 'CHIEF', 'DISPATCHER', 'DUTY OFFICER', 'SUPERVISOR']

@@ -11,7 +11,7 @@ import {
 import { PRIORITY_CONFIG, getPriorityConfig } from './config/priority'
 import { INCIDENT_DETENTION_OVERRIDES } from './config/incidents'
 import { INCIDENT_TYPES, INCIDENT_TYPES_BY_DEPARTMENT } from './config/incidentCatalog'
-import { useIncidentSpawner } from './hooks/useIncidentSpawner'
+import { isIncidentTypeWeatherCompatible, useIncidentSpawner } from './hooks/useIncidentSpawner'
 import { useDispatchSystem } from './hooks/useDispatchSystem'
 import RadioFeed from './components/RadioFeed'
 import {
@@ -56,6 +56,7 @@ import {
   PERSONNEL_UPKEEP_PER_MIN,
   SAVE_SLOT_COUNT,
   SAVE_SCHEMA_VERSION,
+  APP_VERSION,
   SHIFT_RECOVER_PER_SEC,
   SHIFT_RETURN_THRESHOLD,
   SHIFT_SECONDS,
@@ -144,6 +145,15 @@ import {
   getStationSpecializationDispatchBonus,
   getStationSpecializationDefinition,
 } from './game/specializations'
+import {
+  CAMPAIGN_DISTRICTS,
+  createInitialCampaignState,
+  evaluateCampaignProgress,
+  getDistrictById,
+  getDistrictIdForPosition,
+  getDistrictIncidentModifiers,
+  normalizeCampaignState,
+} from './game/campaign'
 import { createTickSnapshot } from './game/snapshot'
 import {
   DEFAULT_TUNING_PRESET_ID,
@@ -172,6 +182,8 @@ import { normalizeStation, normalizeVehicle, normalizeIncident, normalizeWeather
 import { generateCrewMember } from './game/crewMember'
 import { createSaveExportPayload, parseSaveImportPayload, serializeSaveExport } from './game/saveTransfer'
 import { createPlaytestReport } from './game/playtest'
+import { migrateSaveData } from './game/migrations'
+import { getBalanceProfile } from './game/balance'
 import WelcomeMessage from './components/WelcomeMessage'
 import Window from './components/Window'
 import Topbar from './components/Topbar'
@@ -396,6 +408,26 @@ const createDefaultMutualAidState = () => ({
   dayKey: getMissionDayKey(),
 })
 
+const createDefaultEconomyReliefState = () => ({
+  dayKey: getMissionDayKey(),
+  grantsToday: 0,
+})
+
+const createDefaultSessionStats = () => ({
+  incidentsSpawned: 0,
+  incidentsResolved: 0,
+  incidentsMissed: 0,
+  totalDispatches: 0,
+  quickDispatches: 0,
+  manualDispatches: 0,
+  unitsDispatched: 0,
+  followUpsAccepted: 0,
+  followUpsDeclined: 0,
+  feedbackCount: 0,
+  districtUnlocks: 0,
+  emergencyStipends: 0,
+})
+
 const getNow = () => Date.now()
 const randomFloat = () => Math.random()
 const randomIndex = (length) => Math.floor(randomFloat() * length)
@@ -471,7 +503,10 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showBugReporter, setShowBugReporter] = useState(false)
   const [bugReportSeverity, setBugReportSeverity] = useState('normal')
+  const [bugReportCategory, setBugReportCategory] = useState('bug')
   const [bugReportNotes, setBugReportNotes] = useState('')
+  const [sessionStartedAt] = useState(() => Date.now())
+  const [sessionStats, setSessionStats] = useState(createDefaultSessionStats)
   const [showNextSteps, setShowNextSteps] = useState(true)
   const [rememberWindowPositions, setRememberWindowPositions] = useState(false)
   const [showTestPanel, setShowTestPanel] = useState(true)
@@ -510,37 +545,74 @@ function App() {
     createInitialDepartmentReputation
   )
   const [liveEvent, setLiveEvent] = useState(null)
+  const [showCampaign, setShowCampaign] = useState(false)
   const [progressionHooksUnlocked, setProgressionHooksUnlocked] = useState(
     normalizeUnlockedProgressionHooks({})
   )
   const [mutualAidState, setMutualAidState] = useState(createDefaultMutualAidState)
+  const [campaignState, setCampaignState] = useState(createInitialCampaignState)
+  const [economyReliefState, setEconomyReliefState] = useState(createDefaultEconomyReliefState)
   const [accessibilityState, setAccessibilityState] = useState(DEFAULT_ACCESSIBILITY_STATE)
 
   const progression = useMemo(
-    () => ({
-      resolvedCount,
-      trafficUnitUnlocked: resolvedCount >= PROGRESSION_MILESTONES.trafficUnitUnlockedAt,
-      supervisorUnlocked: resolvedCount >= PROGRESSION_MILESTONES.supervisorUnlockedAt,
-      precinctUpgradeUnlocked: resolvedCount >= PROGRESSION_MILESTONES.precinctUpgradeUnlockedAt,
-      fireRescueUnlocked:
-        (telemetryStats.fire?.resolved || 0) >= PROGRESSION_MILESTONES.fireRescueUnlockedAt,
-      emsAdvancedCareUnlocked:
-        (telemetryStats.ems?.resolved || 0) >= PROGRESSION_MILESTONES.emsAdvancedCareUnlockedAt,
-      towHeavyRecoveryUnlocked:
-        (telemetryStats.tow?.resolved || 0) >= PROGRESSION_MILESTONES.towHeavyRecoveryUnlockedAt,
-      // Department Station Unlocks
-      fireStationUnlocked: resolvedCount >= PROGRESSION_MILESTONES.fireStationUnlockedAt,
-      emsStationUnlocked: resolvedCount >= PROGRESSION_MILESTONES.emsStationUnlockedAt,
-      towYardUnlocked: resolvedCount >= PROGRESSION_MILESTONES.towYardUnlockedAt,
-      publicWorksUnlocked: resolvedCount >= PROGRESSION_MILESTONES.publicWorksUnlockedAt,
-      specializationDoctrineUnlocked: Boolean(progressionHooksUnlocked.specialization_doctrine),
-      incidentChainProtocolUnlocked: Boolean(progressionHooksUnlocked.incident_chain_protocol),
-      departmentReputationUnlocked: Boolean(progressionHooksUnlocked.department_reputation),
-      liveOpsNetworkUnlocked: Boolean(progressionHooksUnlocked.live_ops_network),
-      mutualAidCommandUnlocked: Boolean(progressionHooksUnlocked.mutual_aid_command),
-    }),
-    [resolvedCount, telemetryStats, progressionHooksUnlocked]
+    () => {
+      const specializedStationsCount = stations.filter(
+        (station) =>
+          typeof station.specialization === 'string' &&
+          station.specialization &&
+          station.specialization !== 'standard'
+      ).length
+      const specializationDoctrineUnlocked = Boolean(progressionHooksUnlocked.specialization_doctrine)
+      const incidentChainProtocolUnlocked = Boolean(progressionHooksUnlocked.incident_chain_protocol)
+      const departmentReputationUnlocked = Boolean(progressionHooksUnlocked.department_reputation)
+      const liveOpsNetworkUnlocked = Boolean(progressionHooksUnlocked.live_ops_network)
+      const mutualAidCommandUnlocked = Boolean(progressionHooksUnlocked.mutual_aid_command)
+      return {
+        resolvedCount,
+        playerLevel: playerProgressLevel,
+        specializedStationsCount,
+        trafficUnitUnlocked: resolvedCount >= PROGRESSION_MILESTONES.trafficUnitUnlockedAt,
+        supervisorUnlocked: resolvedCount >= PROGRESSION_MILESTONES.supervisorUnlockedAt,
+        precinctUpgradeUnlocked: resolvedCount >= PROGRESSION_MILESTONES.precinctUpgradeUnlockedAt,
+        fireRescueUnlocked:
+          (telemetryStats.fire?.resolved || 0) >= PROGRESSION_MILESTONES.fireRescueUnlockedAt,
+        emsAdvancedCareUnlocked:
+          (telemetryStats.ems?.resolved || 0) >= PROGRESSION_MILESTONES.emsAdvancedCareUnlockedAt,
+        towHeavyRecoveryUnlocked:
+          (telemetryStats.tow?.resolved || 0) >= PROGRESSION_MILESTONES.towHeavyRecoveryUnlockedAt,
+        heavyMachineryUnlocked:
+          liveOpsNetworkUnlocked && resolvedCount >= 44,
+        // Department Station Unlocks
+        fireStationUnlocked: resolvedCount >= PROGRESSION_MILESTONES.fireStationUnlockedAt,
+        emsStationUnlocked: resolvedCount >= PROGRESSION_MILESTONES.emsStationUnlockedAt,
+        towYardUnlocked: resolvedCount >= PROGRESSION_MILESTONES.towYardUnlockedAt,
+        publicWorksUnlocked: resolvedCount >= PROGRESSION_MILESTONES.publicWorksUnlockedAt,
+        specializationDoctrineUnlocked,
+        incidentChainProtocolUnlocked,
+        departmentReputationUnlocked,
+        liveOpsNetworkUnlocked,
+        mutualAidCommandUnlocked,
+      }
+    },
+    [resolvedCount, telemetryStats, progressionHooksUnlocked, stations, playerProgressLevel]
   )
+  const campaignProgress = useMemo(
+    () =>
+      evaluateCampaignProgress({
+        resolvedCount,
+        level: playerProgressLevel,
+        publicTrust,
+        campaignState,
+      }),
+    [campaignState, playerProgressLevel, publicTrust, resolvedCount]
+  )
+  const activeCampaignDistrict = useMemo(
+    () => getDistrictById(campaignProgress.activeDistrictId),
+    [campaignProgress.activeDistrictId]
+  )
+  const campaignStatusLabel = campaignProgress.nextDistrict
+    ? `Next: ${campaignProgress.nextDistrict.label}`
+    : 'All districts unlocked'
   const progressionHookStatus = useMemo(
     () =>
       evaluateProgressionHooks({
@@ -625,6 +697,12 @@ function App() {
           return label ? label.replace(/_/g, ' ') : ''
         })()
         : ''
+  const weatherTemperatureLabel = Number.isFinite(Number(weather?.temperatureC))
+    ? `${Math.round(Number(weather.temperatureC))}C`
+    : (() => {
+      const matched = String(currentWeatherSummary || '').match(/-?\d+\s?C/i)
+      return matched ? matched[0].replace(/\s+/g, '') : '--'
+    })()
   const activeLiveEvent = useMemo(() => {
     const normalized = normalizeLiveEvent(liveEvent)
     if (!normalized) return null
@@ -684,10 +762,28 @@ function App() {
     if (resolvedCount < 20) return 0.82
     return 1
   }, [resolvedCount])
-  const rewardMultiplierRef = useLatestRef(tuningPreset.rewardMultiplier * earlyOpsRewardMultiplier)
-  const missPenaltyMultiplierRef = useLatestRef(
-    tuningPreset.missPenaltyMultiplier * earlyOpsPenaltyMultiplier
+  const balanceProfile = useMemo(
+    () =>
+      getBalanceProfile({
+        resolvedCount,
+        money,
+        publicTrust,
+        telemetryStats,
+      }),
+    [money, publicTrust, resolvedCount, telemetryStats]
   )
+  const rewardMultiplierRef = useLatestRef(
+    tuningPreset.rewardMultiplier *
+      earlyOpsRewardMultiplier *
+      (balanceProfile.rewardMultiplier || 1)
+  )
+  const missPenaltyMultiplierRef = useLatestRef(
+    tuningPreset.missPenaltyMultiplier *
+      earlyOpsPenaltyMultiplier *
+      (balanceProfile.missPenaltyMultiplier || 1)
+  )
+  const trustGainBalanceMultiplier = balanceProfile.trustGainMultiplier || 1
+  const trustLossBalanceMultiplier = balanceProfile.trustLossMultiplier || 1
   const pendingRebuildRoutes = useRef(new Set())
   const economyTimer = useRef(0)
   const simSpeedRef = useRef(simSpeedMultiplier)
@@ -853,6 +949,49 @@ function App() {
 
   useEffect(() => {
     if (!hasLoadedSave) return
+    if (!campaignProgress.newlyUnlockedDistrictIds.length) return
+    const newlyUnlocked = campaignProgress.newlyUnlockedDistrictIds
+      .map((districtId) => getDistrictById(districtId))
+      .filter(Boolean)
+    if (!newlyUnlocked.length) return
+
+    setCampaignState((prev) => {
+      const nextUnlocked = Array.from(
+        new Set([...(prev?.unlockedDistrictIds || []), ...campaignProgress.unlockedDistrictIds])
+      )
+      const activeDistrictId =
+        nextUnlocked.includes(prev?.activeDistrictId)
+          ? prev.activeDistrictId
+          : nextUnlocked[0]
+      return {
+        ...normalizeCampaignState(prev),
+        unlockedDistrictIds: nextUnlocked,
+        activeDistrictId,
+      }
+    })
+    setSessionStats((prev) => ({
+      ...prev,
+      districtUnlocks: (prev.districtUnlocks || 0) + newlyUnlocked.length,
+    }))
+    newlyUnlocked.forEach((district) => {
+      showMessage(`District unlocked: ${district.label}`)
+      addRadioLogRef.current?.(
+        `Campaign update: ${district.label} is now active for operations.`,
+        'success',
+        'SYSTEM',
+        'CMP'
+      )
+    })
+  }, [
+    addRadioLogRef,
+    campaignProgress.newlyUnlockedDistrictIds,
+    campaignProgress.unlockedDistrictIds,
+    hasLoadedSave,
+    showMessage,
+  ])
+
+  useEffect(() => {
+    if (!hasLoadedSave) return
     if (!progression.liveOpsNetworkUnlocked) {
       setLiveEvent(null)
       return
@@ -913,7 +1052,64 @@ function App() {
         usesToday: 0,
       }
     })
+    setEconomyReliefState((prev) => {
+      if (prev.dayKey === missionDayKey) return prev
+      return {
+        ...prev,
+        dayKey: missionDayKey,
+        grantsToday: 0,
+      }
+    })
   }, [missionDayKey])
+
+  useEffect(() => {
+    if (!hasLoadedSave) return
+    if (resolvedCount >= 40) return
+    if (money >= 550) return
+    if ((economyReliefState.grantsToday || 0) >= 1) return
+
+    const emergencyGrant = Math.max(
+      320,
+      Math.round(420 * (balanceProfile.rewardMultiplier || 1))
+    )
+    setMoney((prev) => prev + emergencyGrant)
+    setTotalMoneyEarned((prev) => prev + emergencyGrant)
+    setPublicTrust((prev) => clamp(prev + 1, 0, 100))
+    setTransactions((prev) =>
+      [
+        {
+          id: `relief-${Date.now()}`,
+          label: 'Emergency Operations Stabilization Grant',
+          amount: emergencyGrant,
+          time: new Date().toLocaleTimeString(),
+        },
+        ...prev,
+      ].slice(0, 100)
+    )
+    setEconomyReliefState((prev) => ({
+      ...prev,
+      grantsToday: (prev.grantsToday || 0) + 1,
+    }))
+    setSessionStats((prev) => ({
+      ...prev,
+      emergencyStipends: (prev.emergencyStipends || 0) + 1,
+    }))
+    addRadioLogRef.current?.(
+      `Finance advisory: emergency stabilization grant posted (+$${emergencyGrant}).`,
+      'warning',
+      'SYSTEM',
+      'FIN'
+    )
+    showMessage(`Emergency grant posted (+$${emergencyGrant})`)
+  }, [
+    addRadioLogRef,
+    balanceProfile.rewardMultiplier,
+    economyReliefState.grantsToday,
+    hasLoadedSave,
+    money,
+    resolvedCount,
+    showMessage,
+  ])
 
   const handleMutualAid = () => {
     if (!activeStation) {
@@ -938,10 +1134,17 @@ function App() {
       progression.liveOpsNetworkUnlocked && activeLiveEvent
         ? liveEventEffects.mutualAidCostMultiplier || 1
         : 1
+    const balanceCostMultiplier = balanceProfile.mutualAidCostMultiplier || 1
     const commandCostMultiplier = progression.mutualAidCommandUnlocked ? 0.9 : 1
     const aidCost = Math.max(
       300,
-      Math.round(MUTUAL_AID_COST * reputationCostMultiplier * liveEventCostMultiplier * commandCostMultiplier)
+      Math.round(
+        MUTUAL_AID_COST *
+          reputationCostMultiplier *
+          liveEventCostMultiplier *
+          balanceCostMultiplier *
+          commandCostMultiplier
+      )
     )
     if (money < aidCost) {
       showMessage(`Not enough funds for Mutual Aid ($${aidCost}).`)
@@ -1022,6 +1225,47 @@ function App() {
       'SYSTEM'
     )
     showMessage(`Mutual Aid requested (-$${aidCost}).`)
+  }
+
+  const handleSelectCampaignDistrict = (districtId) => {
+    if (!campaignProgress.unlockedDistrictIds.includes(districtId)) return
+    setCampaignState((prev) => ({
+      ...normalizeCampaignState(prev),
+      activeDistrictId: districtId,
+    }))
+    showMessage(`Active district set: ${getDistrictById(districtId).label}`)
+  }
+
+  const handleClaimCampaignMilestone = (milestoneId) => {
+    const milestone = campaignProgress.availableMilestones.find((item) => item.id === milestoneId)
+    if (!milestone) return
+    setCampaignState((prev) => ({
+      ...normalizeCampaignState(prev),
+      claimedMilestoneIds: Array.from(
+        new Set([...(prev?.claimedMilestoneIds || []), milestone.id])
+      ),
+    }))
+    if (milestone.reward > 0) {
+      setMoney((prev) => prev + milestone.reward)
+      setTotalMoneyEarned((prev) => prev + milestone.reward)
+      setTransactions((prev) =>
+        [
+          {
+            id: `campaign-${milestone.id}-${Date.now()}`,
+            label: `Campaign milestone: ${milestone.title}`,
+            amount: milestone.reward,
+            time: new Date().toLocaleTimeString(),
+          },
+          ...prev,
+        ].slice(0, 100)
+      )
+    }
+    if (milestone.trustBonus > 0) {
+      setPublicTrust((prev) => clamp(prev + milestone.trustBonus, 0, 100))
+    }
+    showMessage(
+      `${milestone.title} claimed (+$${milestone.reward}, +${milestone.trustBonus} trust)`
+    )
   }
 
   const activeStation =
@@ -1172,7 +1416,9 @@ function App() {
     setShowTelemetry(false)
     setShowSettings(false)
     setShowBugReporter(false)
+    setShowCampaign(false)
     setBugReportSeverity('normal')
+    setBugReportCategory('bug')
     setBugReportNotes('')
     setShowNextSteps(true)
     setRememberWindowPositions(false)
@@ -1200,6 +1446,9 @@ function App() {
     setDepartmentReputation(createInitialDepartmentReputation())
     setLiveEvent(null)
     setMutualAidState(createDefaultMutualAidState())
+    setCampaignState(createInitialCampaignState())
+    setEconomyReliefState(createDefaultEconomyReliefState())
+    setSessionStats(createDefaultSessionStats())
     setWeather(createInitialWeather(DEFAULT_CENTER))
     economyTimer.current = 0
   }
@@ -1210,6 +1459,8 @@ function App() {
     nextVehicleId, nextStationId, nextPrisonId, nextIncidentId, nextCaseId, nextSpecialId,
     missionDayKey, dailyGoals, telemetryStats, unlockedTech, operationsStreak, tutorialFlags, weather,
     departmentReputation, liveEvent, progressionHooksUnlocked, mutualAidState,
+    campaignState,
+    economyReliefState,
     uiState: {
       stationPanelTab,
       showLayers,
@@ -1229,6 +1480,8 @@ function App() {
     nextVehicleId, nextStationId, nextPrisonId, nextIncidentId, nextCaseId, nextSpecialId,
     missionDayKey, dailyGoals, telemetryStats, unlockedTech, operationsStreak, tutorialFlags, weather,
     departmentReputation, liveEvent, progressionHooksUnlocked, mutualAidState,
+    campaignState,
+    economyReliefState,
     stationPanelTab, showLayers, showCases, showTelemetry, tuningPresetId, incidentFilters, showNextSteps, rememberWindowPositions, showResearch, accessibilityState
   ])
   const playtestReport = useMemo(
@@ -1246,12 +1499,34 @@ function App() {
         stations,
         vehicles,
         incidents,
+        session: {
+          startedAt: sessionStartedAt,
+          stats: sessionStats,
+        },
+        campaign: {
+          district: activeCampaignDistrict.label,
+          unlockedDistricts: campaignProgress.unlockedDistrictIds.map(
+            (districtId) => getDistrictById(districtId).label
+          ),
+          nextDistrict: campaignProgress.nextDistrict?.label || null,
+          milestonesClaimed: campaignState.claimedMilestoneIds || [],
+        },
+        build: {
+          appVersion: APP_VERSION,
+          saveSchemaVersion: SAVE_SCHEMA_VERSION,
+        },
         notes: bugReportNotes,
         severity: bugReportSeverity,
+        category: bugReportCategory,
       }),
     [
+      activeCampaignDistrict.label,
       bugReportNotes,
+      bugReportCategory,
       bugReportSeverity,
+      campaignProgress.nextDistrict?.label,
+      campaignProgress.unlockedDistrictIds,
+      campaignState.claimedMilestoneIds,
       incidents,
       money,
       playerCallsign,
@@ -1261,6 +1536,8 @@ function App() {
       resolvedCount,
       saveSlot,
       score,
+      sessionStartedAt,
+      sessionStats,
       stations,
       vehicles,
       weather,
@@ -1341,6 +1618,8 @@ function App() {
     setTelemetryStats(data.telemetryStats || createDepartmentTelemetry());
     setDepartmentReputation(normalizeDepartmentReputation(data.departmentReputation))
     setLiveEvent(normalizeLiveEvent(data.liveEvent))
+    setCampaignState(normalizeCampaignState(data.campaignState))
+    setSessionStats(createDefaultSessionStats())
     setProgressionHooksUnlocked(
       normalizeUnlockedProgressionHooks(data.progressionHooksUnlocked)
     )
@@ -1351,6 +1630,14 @@ function App() {
         cooldownUntil: Math.max(0, Number(source.cooldownUntil) || 0),
         usesToday: Math.max(0, Number(source.usesToday) || 0),
         dayKey: typeof source.dayKey === 'string' ? source.dayKey : fallback.dayKey,
+      }
+    })
+    setEconomyReliefState(() => {
+      const fallback = createDefaultEconomyReliefState()
+      const source = data.economyReliefState || {}
+      return {
+        dayKey: typeof source.dayKey === 'string' ? source.dayKey : fallback.dayKey,
+        grantsToday: Math.max(0, Number(source.grantsToday) || 0),
       }
     })
     setUnlockedTech(Array.isArray(data.unlockedTech) ? data.unlockedTech : []);
@@ -1364,12 +1651,17 @@ function App() {
     )
     setShowWelcome(!safeStations.length);
   }, []);
+  const migrateLoadedState = useCallback(
+    (data) => migrateSaveData(data, SAVE_SCHEMA_VERSION),
+    []
+  )
 
   usePersistence({
     storageKey,
     hasLoadedSave,
     setHasLoadedSave,
     applyDefaultState,
+    migrateLoadedData: migrateLoadedState,
     gameState,
     loadState
   })
@@ -2372,6 +2664,13 @@ function App() {
 
   const handleFollowUpDecision = (accepted) => {
     if (!followUpPromptId) return
+    setSessionStats((prev) => ({
+      ...prev,
+      followUpsAccepted:
+        accepted ? (prev.followUpsAccepted || 0) + 1 : prev.followUpsAccepted || 0,
+      followUpsDeclined:
+        !accepted ? (prev.followUpsDeclined || 0) + 1 : prev.followUpsDeclined || 0,
+    }))
     const incidentId = followUpPromptId
     setFollowUpPromptId(null)
     if (followUpPromptTimer.current) {
@@ -2920,6 +3219,12 @@ function App() {
     tow: progression.towYardUnlocked,
     public_works: progression.publicWorksUnlocked,
   }
+  const handleIncidentSpawned = useCallback(() => {
+    setSessionStats((prev) => ({
+      ...prev,
+      incidentsSpawned: (prev.incidentsSpawned || 0) + 1,
+    }))
+  }, [])
 
   const { spawnIncident } = useIncidentSpawner({
     stations,
@@ -2943,11 +3248,15 @@ function App() {
     spawnUnlocks,
     intervalMultiplier:
       tuningPreset.intervalMultiplier *
+      (balanceProfile.spawnIntervalMultiplier || 1) *
       (progression.liveOpsNetworkUnlocked ? liveEventEffects.intervalMultiplier || 1 : 1),
     maxActiveBias:
       tuningPreset.maxActiveBias +
+      (balanceProfile.maxActiveBias || 0) +
       (progression.liveOpsNetworkUnlocked ? Number(liveEventEffects.maxActiveBias) || 0 : 0),
     departmentIncidentModifiers,
+    campaignDistrictIds: campaignProgress.unlockedDistrictIds,
+    onIncidentSpawned: handleIncidentSpawned,
     liveEvent: progression.liveOpsNetworkUnlocked ? activeLiveEvent : null,
   })
 
@@ -3019,7 +3328,13 @@ function App() {
     }
 
     const pool = INCIDENT_TYPES_BY_DEPARTMENT[departmentId] || INCIDENT_TYPES
-    const type = pickRandomItem(pool, 'Call for service')
+    const weatherCompatiblePool = pool.filter((incidentType) =>
+      isIncidentTypeWeatherCompatible(incidentType, weather)
+    )
+    const type = pickRandomItem(
+      weatherCompatiblePool.length ? weatherCompatiblePool : pool,
+      'Call for service'
+    )
     const lower = type.toLowerCase()
 
     let requiredUnits = 1
@@ -3126,8 +3441,10 @@ function App() {
     caseId,
     caseScore,
     caseNotes,
+    rewardMultiplier,
     requiresDetention,
     awaitingFollowUp,
+    districtId,
   }) => {
     const priorityValue = Number(priority) || 2
     const priorityConfig = getPriorityConfig(priorityValue)
@@ -3152,12 +3469,26 @@ function App() {
       position,
       getDefaultStationPosition()
     )
+    const incidentDistrictId =
+      districtId ||
+      getDistrictIdForPosition(safePosition, {
+        center: DEFAULT_CENTER,
+        unlockedDistrictIds: campaignProgress.unlockedDistrictIds,
+      })
+    const districtMods = getDistrictIncidentModifiers({
+      districtId: incidentDistrictId,
+      weatherCondition: weather?.condition,
+    })
     const departmentId = requirements.requiredDepartment || DEFAULT_DEPARTMENT_ID
     const departmentMods =
       departmentIncidentModifiers[departmentId] || departmentIncidentModifiers[DEFAULT_DEPARTMENT_ID]
     const responseTargetSeconds = Math.max(
       45,
-      Math.round(priorityConfig.responseTargetSeconds * (departmentMods?.responseTargetMultiplier || 1))
+      Math.round(
+        priorityConfig.responseTargetSeconds *
+          (districtMods?.responseTargetMultiplier || 1) *
+          (departmentMods?.responseTargetMultiplier || 1)
+      )
     )
     const onSceneDurationSeconds = Math.max(
       12,
@@ -3180,8 +3511,12 @@ function App() {
       requiredUnits: requirements.requiredUnits,
       requiredUnitType: requirements.requiredUnitType,
       requiredDepartment: departmentId,
+      districtId: incidentDistrictId,
       responseTargetSeconds,
-      rewardMultiplier: departmentMods?.rewardMultiplier || 1,
+      rewardMultiplier:
+        (districtMods?.rewardMultiplier || 1) *
+        (departmentMods?.rewardMultiplier || 1) *
+        (Number(rewardMultiplier) || 1),
       missPenaltyMultiplier: departmentMods?.missPenaltyMultiplier || 1,
       onSceneDurationSeconds,
       dispatchedAt: null,
@@ -3211,6 +3546,7 @@ function App() {
     const record = buildIncidentRecord(options)
     setIncidents((prev) => [record, ...prev])
     setCases((prev) => ensureCaseEntry(prev, record))
+    handleIncidentSpawned(record)
   }
 
   const getFollowUpIncident = (incident) => {
@@ -3413,7 +3749,15 @@ function App() {
     const routeData = await buildRoute(start, end)
     const eventId = nextSpecialId
     setNextSpecialId((prev) => prev + 1)
-    const specialTypes = ['Stolen vehicle', 'Suspicious vehicle', 'Fleeing suspect']
+    const specialTypes = [
+      'Stolen vehicle',
+      'Suspicious vehicle',
+      'Fleeing suspect',
+      'Harborfront disturbance',
+      'Critical infrastructure alarm',
+      'Bridge closure violation',
+      'Transit terminal security alert',
+    ]
     const type = pickRandomItem(specialTypes, 'Suspicious vehicle')
     const now = getNow()
     const newEvent = {
@@ -3467,6 +3811,20 @@ function App() {
       resolvedCount,
     ]
   )
+  const handleDispatchEvent = useCallback((event) => {
+    if (!event) return
+    const units = Math.max(1, Number(event.units) || 1)
+    const source = event.source === 'quick' ? 'quick' : 'manual'
+    setSessionStats((prev) => ({
+      ...prev,
+      totalDispatches: (prev.totalDispatches || 0) + 1,
+      quickDispatches:
+        source === 'quick' ? (prev.quickDispatches || 0) + 1 : prev.quickDispatches || 0,
+      manualDispatches:
+        source === 'manual' ? (prev.manualDispatches || 0) + 1 : prev.manualDispatches || 0,
+      unitsDispatched: (prev.unitsDispatched || 0) + units,
+    }))
+  }, [])
 
   const {
     getRequiredUnits,
@@ -3476,6 +3834,7 @@ function App() {
     getVehicleIneligibilityReason,
     getEligibleVehicleIds,
     getIncidentRequirementLines,
+    getDispatchRecommendation,
     dispatchVehicle,
     handleQuickDispatch,
   } = useDispatchSystem({
@@ -3494,12 +3853,26 @@ function App() {
     unlockedTech,
     departmentDispatchModifiers: departmentIncidentModifiers,
     getVehicleDispatchBonus,
+    onDispatchEvent: handleDispatchEvent,
   })
 
   const recordTelemetryEvent = (event) => {
     if (!event) return
     const departmentId = event.departmentId || DEFAULT_DEPARTMENT_ID
     if (!TELEMETRY_DEPARTMENT_IDS.includes(departmentId)) return
+    if (event.type === 'resolved' || event.type === 'missed') {
+      setSessionStats((prev) => ({
+        ...prev,
+        incidentsResolved:
+          event.type === 'resolved'
+            ? (prev.incidentsResolved || 0) + 1
+            : prev.incidentsResolved || 0,
+        incidentsMissed:
+          event.type === 'missed'
+            ? (prev.incidentsMissed || 0) + 1
+            : prev.incidentsMissed || 0,
+      }))
+    }
     setTelemetryStats((prev) => {
       const current = prev[departmentId] || {
         resolved: 0,
@@ -3720,8 +4093,11 @@ function App() {
     if (!window.confirm('Recover this slot from the latest backup?')) return
     try {
       const parsed = JSON.parse(backupRaw)
-      localStorage.setItem(storageKey, backupRaw)
-      loadState(parsed)
+      const migrated = migrateLoadedState(parsed)
+      writeSaveToStorage(storageKey, migrated, {
+        schemaVersion: SAVE_SCHEMA_VERSION,
+      })
+      loadState(migrated)
       setHasLoadedSave(true)
       showMessage('Backup recovered.')
     } catch (error) {
@@ -3764,9 +4140,12 @@ function App() {
       if (!window.confirm(`Import save from ${file.name}? Current slot progress will be replaced.`)) {
         return
       }
-      const importedState = payload.data
-      writeSaveToStorage(storageKey, importedState, {
+      const importedState = migrateLoadedState({
+        ...payload.data,
         schemaVersion: Number(payload.schemaVersion) || SAVE_SCHEMA_VERSION,
+      })
+      writeSaveToStorage(storageKey, importedState, {
+        schemaVersion: SAVE_SCHEMA_VERSION,
       })
       loadState(importedState)
       setHasLoadedSave(true)
@@ -3795,6 +4174,11 @@ function App() {
     downloadTextFile(`fr2026-bugreport-slot${saveSlot}-${dateLabel}.json`, playtestReportText)
     showMessage('Bug report downloaded.')
   }
+  const handleDownloadSessionReport = () => {
+    const dateLabel = new Date().toISOString().replace(/[:.]/g, '-')
+    downloadTextFile(`fr2026-session-slot${saveSlot}-${dateLabel}.json`, playtestReportText)
+    showMessage('Session report downloaded.')
+  }
   const handleStoreBugReport = () => {
     try {
       const key = 'fr2026.playtestReports'
@@ -3802,6 +4186,10 @@ function App() {
       const existing = existingRaw ? JSON.parse(existingRaw) : []
       const next = [playtestReport, ...(Array.isArray(existing) ? existing : [])].slice(0, 50)
       localStorage.setItem(key, JSON.stringify(next))
+      setSessionStats((prev) => ({
+        ...prev,
+        feedbackCount: (prev.feedbackCount || 0) + 1,
+      }))
       showMessage('Bug report saved locally.')
     } catch {
       showMessage('Unable to save report locally.')
@@ -4037,6 +4425,25 @@ function App() {
       onlyActiveDepartment: true,
       type: 'all',
     }))
+  const campaignNextObjective = useMemo(() => {
+    if (campaignProgress.availableMilestones.length > 0) {
+      const nextMilestone = campaignProgress.availableMilestones[0]
+      return {
+        title: `Claim milestone: ${nextMilestone.title}`,
+        detail: `${nextMilestone.description} (+$${nextMilestone.reward}, +${nextMilestone.trustBonus} trust).`,
+        actionLabel: 'Open Campaign',
+      }
+    }
+    if (campaignProgress.nextDistrict) {
+      const unlock = campaignProgress.nextDistrict.unlock || {}
+      return {
+        title: `Unlock district: ${campaignProgress.nextDistrict.label}`,
+        detail: `Need ${unlock.minResolved || 0} resolved calls, level ${unlock.minLevel || 1}${unlock.minTrust ? `, and trust ${unlock.minTrust}` : ''}.`,
+        actionLabel: 'Open Campaign',
+      }
+    }
+    return null
+  }, [campaignProgress.availableMilestones, campaignProgress.nextDistrict])
   const { alertsQueue, nextAction } = useCommandHints({
     baseIncidents,
     listIncidents,
@@ -4061,6 +4468,8 @@ function App() {
     onFocusMyDepartment: handleFocusMyDepartment,
     onStartPlaceStation: handleStartPlaceStation,
     onToggleBuildMenu: handleStartBuildingPlacement,
+    campaignNextObjective,
+    onOpenCampaign: () => setShowCampaign(true),
   })
   const { getIncidentPriorityVisual, getIncidentRingMetrics, getRouteClass } =
     useMapPresentation({
@@ -4100,7 +4509,11 @@ function App() {
         const nextSuccessfulDays = (operationsStreak.successfulDays || 0) + 1
         const nextBestStreak = Math.max(operationsStreak.bestStreak || 0, nextSuccessfulDays)
         const streakBonus = 250 + nextSuccessfulDays * 100
-        const streakTrust = Math.min(5, 1 + Math.floor(nextSuccessfulDays / 2))
+        const streakTrustBase = Math.min(5, 1 + Math.floor(nextSuccessfulDays / 2))
+        const streakTrust = Math.max(
+          1,
+          Math.round(streakTrustBase * trustGainBalanceMultiplier)
+        )
         setMoney((prev) => prev + streakBonus)
         setTotalMoneyEarned((prev) => prev + streakBonus)
         setPublicTrust((prev) => clamp(prev + streakTrust, 0, 100))
@@ -4123,8 +4536,12 @@ function App() {
         showMessage(`Contract streak day ${nextSuccessfulDays} (+$${streakBonus})`)
       } else {
         const missedGoals = dailyGoals.length - completedGoals
-        const trustPenalty =
+        const trustPenaltyBase =
           operationsStreak.successfulDays > 0 ? Math.min(4, Math.ceil(missedGoals / 3)) : 0
+        const trustPenalty =
+          trustPenaltyBase > 0
+            ? Math.max(1, Math.round(trustPenaltyBase * trustLossBalanceMultiplier))
+            : 0
         if (trustPenalty > 0) {
           setPublicTrust((prev) => clamp(prev - trustPenalty, 0, 100))
         }
@@ -4151,7 +4568,14 @@ function App() {
       setGoalDismissingIds([])
     }, 60000)
     return () => clearInterval(interval)
-  }, [dailyGoals, missionDayKey, operationsStreak, showMessage])
+  }, [
+    dailyGoals,
+    missionDayKey,
+    operationsStreak,
+    showMessage,
+    trustGainBalanceMultiplier,
+    trustLossBalanceMultiplier,
+  ])
 
   const visibleDailyGoals = dailyGoals.filter((goal) => !goal.claimed)
   const handleClaimGoal = (goalId) => {
@@ -4163,10 +4587,14 @@ function App() {
         ? 1 + Math.min(0.5, (operationsStreak.successfulDays || 0) * 0.05)
         : 1
     const rewardPayout = Math.round(goal.reward * streakMultiplier)
-    const trustPayout =
+    const trustPayoutBase =
       goal.category === 'contract' && (operationsStreak.successfulDays || 0) > 0
         ? goal.trustBonus + 1
         : goal.trustBonus
+    const trustPayout = Math.max(
+      1,
+      Math.round(trustPayoutBase * trustGainBalanceMultiplier)
+    )
     setGoalDismissingIds((prev) => [...prev, goalId])
     setMoney((prev) => prev + rewardPayout)
     setTotalMoneyEarned((prev) => prev + rewardPayout)
@@ -4247,12 +4675,14 @@ function App() {
         playerAvatar={playerAvatar}
         missionDayKey={missionDayKey}
         weatherSummary={currentWeatherSummary}
+        weatherTemperatureLabel={weatherTemperatureLabel}
         weatherNextUpdateLabel={weatherNextUpdateLabel}
         weatherLocationLabel={weatherLocationLabel}
         weatherLocalTimeLabel={weatherLocalTimeLabel}
         weatherTimezoneLabel={weatherTimezoneLabel}
         operationsPhase={operationsPhase}
         liveEventStatusLabel={progression.liveOpsNetworkUnlocked ? liveEventStatusLabel : 'Live events locked'}
+        campaignStatusLabel={campaignStatusLabel}
         departmentReputationLabel={activeDepartmentReputationLabel}
         mutualAidLabel={mutualAidButtonLabel}
         mutualAidDisabled={mutualAidCooldownSeconds > 0}
@@ -4794,6 +5224,7 @@ function App() {
             getEligibleVehicleIds={getEligibleVehicleIds}
             canDispatchIncident={canDispatchIncident}
             getIncidentRequirementLines={getIncidentRequirementLines}
+            getDispatchRecommendation={getDispatchRecommendation}
             getRequiredUnits={getRequiredUnits}
             handleQuickDispatch={handleQuickDispatch}
             getSelectedId={getSelectedId}
@@ -5047,6 +5478,73 @@ function App() {
           </Window>
         )}
 
+        {showCampaign && (
+          <Window
+            id="campaign"
+            title="CAMPAIGN OPS"
+            initialPos={{ x: window.innerWidth - 760, y: 180 }}
+            initialSize={{ width: 420, height: 520 }}
+            onClose={() => setShowCampaign(false)}
+            resetKey={uiResetKey}
+          >
+            <div className="cmd-content" style={{ display: 'grid', gap: '10px' }}>
+              <div className="station-card">
+                <p className="station-card__title">{activeCampaignDistrict.label}</p>
+                <p className="muted">{activeCampaignDistrict.description}</p>
+                <p className="muted">
+                  Unlocked districts: {campaignProgress.unlockedDistrictIds.length}/
+                  {CAMPAIGN_DISTRICTS.length}
+                </p>
+              </div>
+
+              <p className="eyebrow">District Routing</p>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {CAMPAIGN_DISTRICTS.map((district) => {
+                  const unlocked = campaignProgress.unlockedDistrictIds.includes(district.id)
+                  const active = campaignProgress.activeDistrictId === district.id
+                  const unlockLabel = `Requires ${district.unlock.minResolved} resolved · LVL ${district.unlock.minLevel}${district.unlock.minTrust ? ` · trust ${district.unlock.minTrust}` : ''}`
+                  return (
+                    <div key={district.id} className="settings-row settings-row--actions">
+                      <span>
+                        <strong>{district.label}</strong>
+                        <small>{unlocked ? district.description : unlockLabel}</small>
+                      </span>
+                      <button
+                        className={`cmd-btn ${active ? 'cmd-btn--primary' : ''}`}
+                        disabled={!unlocked}
+                        onClick={() => handleSelectCampaignDistrict(district.id)}
+                      >
+                        {active ? 'Active' : unlocked ? 'Select' : 'Locked'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <p className="eyebrow">Milestones</p>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                {campaignProgress.milestones.map((milestone) => (
+                  <div key={milestone.id} className="settings-row settings-row--actions">
+                    <span>
+                      <strong>{milestone.title}</strong>
+                      <small>
+                        {milestone.description} · Reward ${milestone.reward} · Trust +{milestone.trustBonus}
+                      </small>
+                    </span>
+                    <button
+                      className={`cmd-btn ${milestone.availableToClaim ? 'cmd-btn--primary' : ''}`}
+                      disabled={!milestone.availableToClaim}
+                      onClick={() => handleClaimCampaignMilestone(milestone.id)}
+                    >
+                      {milestone.claimed ? 'Claimed' : milestone.availableToClaim ? 'Claim' : 'Locked'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Window>
+        )}
+
         {showSettings && (
           <Window
             id="settings"
@@ -5180,6 +5678,15 @@ function App() {
                   Open Reporter
                 </button>
               </div>
+              <div className="settings-row settings-row--actions">
+                <span>
+                  <strong>Campaign Ops</strong>
+                  <small>Review district unlocks and milestone rewards.</small>
+                </span>
+                <button className="cmd-btn" onClick={() => setShowCampaign(true)}>
+                  Open Campaign
+                </button>
+              </div>
               <p className="muted settings-note">
                 More game settings can be added here over time.
               </p>
@@ -5211,6 +5718,36 @@ function App() {
                   <option value="critical">Critical</option>
                 </select>
               </div>
+              <div className="settings-row">
+                <span>
+                  <strong>Category</strong>
+                  <small>Tag which gameplay area this feedback targets.</small>
+                </span>
+                <select
+                  className="cmd-select"
+                  value={bugReportCategory}
+                  onChange={(event) => setBugReportCategory(event.target.value)}
+                >
+                  <option value="bug">Bug</option>
+                  <option value="ux">UX</option>
+                  <option value="balance">Balance</option>
+                  <option value="progression">Progression</option>
+                  <option value="content">Content</option>
+                  <option value="performance">Performance</option>
+                </select>
+              </div>
+              <div className="station-card">
+                <p className="station-card__title">Session Summary</p>
+                <p className="muted">
+                  Started {new Date(sessionStartedAt).toLocaleTimeString()} · Spawned{' '}
+                  {sessionStats.incidentsSpawned} · Resolved {sessionStats.incidentsResolved} ·
+                  Missed {sessionStats.incidentsMissed}
+                </p>
+                <p className="muted">
+                  Dispatches {sessionStats.totalDispatches} (quick {sessionStats.quickDispatches} /
+                  manual {sessionStats.manualDispatches}) · Units sent {sessionStats.unitsDispatched}
+                </p>
+              </div>
               <label className="label" style={{ fontSize: '0.68rem' }}>
                 Notes
               </label>
@@ -5235,7 +5772,10 @@ function App() {
                   Copy
                 </button>
                 <button className="cmd-btn" onClick={handleDownloadBugReport}>
-                  Download
+                  Download Bug
+                </button>
+                <button className="cmd-btn" onClick={handleDownloadSessionReport}>
+                  Download Session
                 </button>
                 <button className="cmd-btn cmd-btn--primary" onClick={handleStoreBugReport}>
                   Save Local
@@ -5524,6 +6064,23 @@ function App() {
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3v12" /><path d="M18 3v12" /><path d="M3 21h18" /><path d="M6 15a6 6 0 0 0 12 0" /><path d="M10 7h4" /><path d="M12 3v4" /></svg>
             <span className="taskbar-item__tooltip">RESEARCH</span>
+          </button>
+
+          <button
+            className={`taskbar-item ${showCampaign ? 'taskbar-item--active' : ''} ${campaignProgress.availableMilestones.length > 0 ? 'taskbar-item--urgent' : ''}`}
+            onClick={() => setShowCampaign(!showCampaign)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6l9-4 9 4-9 4-9-4z" />
+              <path d="M3 12l9 4 9-4" />
+              <path d="M3 18l9 4 9-4" />
+            </svg>
+            <span className="taskbar-item__tooltip">
+              CAMPAIGN
+              {campaignProgress.availableMilestones.length > 0
+                ? ` (${campaignProgress.availableMilestones.length})`
+                : ''}
+            </span>
           </button>
 
           <button

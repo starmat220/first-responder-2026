@@ -39,7 +39,7 @@ const getPriorityRoleFit = (vehicle, incident) => {
   return 0.35
 }
 
-export const getDispatchCandidateScore = ({
+export const getDispatchCandidateBreakdown = ({
   vehicle,
   incident,
   weather,
@@ -53,22 +53,56 @@ export const getDispatchCandidateScore = ({
   const crewRequired = getCrewRequirement(vehicle.unitType)
   const crewAssigned = Number(vehicle.crewAssigned) || 0
   const crewMargin = Math.max(0, crewAssigned - crewRequired)
+  const roleFitScore = getPriorityRoleFit(vehicle, incident)
+  const statusScore =
+    vehicle.status === VEHICLE_STATUS.available
+      ? 2.2
+      : vehicle.status === VEHICLE_STATUS.returning
+        ? 0.8
+        : 0
+  const weatherScore =
+    isSevereWeather(weather) &&
+    (vehicle.unitType === 'traffic' || vehicle.unitType === 'supervisor')
+      ? 0.45
+      : 0
 
-  let score = 0
-  score -= distanceMeters / 1300
-  score -= etaSeconds / 220
-  score += getPriorityRoleFit(vehicle, incident)
-  score += Math.min(crewMargin, 3) * 1.1
-  score -= fatigue / 22
-  if (vehicle.status === VEHICLE_STATUS.available) score += 2.2
-  if (vehicle.status === VEHICLE_STATUS.returning) score += 0.8
-  if (isSevereWeather(weather) && (vehicle.unitType === 'traffic' || vehicle.unitType === 'supervisor')) {
-    score += 0.45
+  const components = {
+    etaPenalty: -(etaSeconds / 220),
+    distancePenalty: -(distanceMeters / 1300),
+    roleFitScore,
+    crewScore: Math.min(crewMargin, 3) * 1.1,
+    fatiguePenalty: -(fatigue / 22),
+    statusScore,
+    weatherScore,
+    specializationScore: Number(bonus) || 0,
+    departmentScore: Number(departmentBonus) || 0,
   }
-  score += Number(bonus) || 0
-  score += Number(departmentBonus) || 0
-  return score
+
+  const score = Object.values(components).reduce((sum, value) => sum + value, 0)
+  return {
+    score,
+    etaSeconds,
+    distanceMeters,
+    crewMargin,
+    fatigue,
+    components,
+  }
 }
+
+export const getDispatchCandidateScore = ({
+  vehicle,
+  incident,
+  weather,
+  bonus = 0,
+  departmentBonus = 0,
+}) =>
+  getDispatchCandidateBreakdown({
+    vehicle,
+    incident,
+    weather,
+    bonus,
+    departmentBonus,
+  }).score
 
 export const rankDispatchCandidates = ({
   incident,
@@ -109,6 +143,7 @@ export const useDispatchSystem = ({
   unlockedTech = [],
   departmentDispatchModifiers = null,
   getVehicleDispatchBonus = null,
+  onDispatchEvent = null,
 }) => {
   const pendingDispatchIdsRef = useRef(new Set())
 
@@ -197,6 +232,53 @@ export const useDispatchSystem = ({
     })
     return ranked[0]?.id || null
   }
+  const getDispatchRecommendation = (incident) => {
+    const eligible = getEligibleVehicles(incident)
+    if (!eligible.length) return null
+    const ranked = rankDispatchCandidates({
+      incident,
+      vehicles: eligible,
+      weather,
+      departmentDispatchModifiers,
+      getVehicleDispatchBonus,
+    })
+    const best = ranked[0]
+    if (!best) return null
+    const breakdown = getDispatchCandidateBreakdown({
+      vehicle: best,
+      incident,
+      weather,
+      bonus: getVehicleDispatchBonus ? getVehicleDispatchBonus(best, incident) : 0,
+      departmentBonus:
+        departmentDispatchModifiers?.[best.department || DEFAULT_DEPARTMENT_ID]
+          ?.dispatchScoreBonus || 0,
+    })
+    const reasons = []
+    reasons.push(`ETA ${Math.max(1, Math.round(breakdown.etaSeconds))}s`)
+    if (breakdown.crewMargin > 0) {
+      reasons.push(`crew +${breakdown.crewMargin}`)
+    }
+    if (breakdown.components.roleFitScore >= 1) {
+      reasons.push('priority fit')
+    }
+    if (breakdown.fatigue <= 20) {
+      reasons.push('low fatigue')
+    }
+    if (breakdown.components.specializationScore > 0.25) {
+      reasons.push('specialized unit')
+    }
+    if (breakdown.components.departmentScore > 0.25) {
+      reasons.push('dept doctrine bonus')
+    }
+    return {
+      vehicleId: best.id,
+      vehicleName: best.name,
+      unitType: best.unitType,
+      score: breakdown.score,
+      reasons,
+      summary: `${best.name}: ${reasons.slice(0, 3).join(', ')}`,
+    }
+  }
 
   const getIncidentRequirementLines = (incident) => {
     const lines = []
@@ -218,7 +300,7 @@ export const useDispatchSystem = ({
     return lines
   }
 
-  const dispatchVehicle = async (incidentId, requestedVehicleId) => {
+  const dispatchVehicle = async (incidentId, requestedVehicleId, source = 'manual') => {
     if (pendingDispatchIdsRef.current.has(incidentId)) {
       showMessage('Dispatch already in progress.')
       return
@@ -352,6 +434,14 @@ export const useDispatchSystem = ({
           : item
       )
     )
+    onDispatchEvent?.({
+      incidentId,
+      units: selectedIds.length,
+      source,
+      departmentId: incident.requiredDepartment || DEFAULT_DEPARTMENT_ID,
+      requiredUnitType: incident.requiredUnitType || null,
+      timestamp: Date.now(),
+    })
 
     // We simulate a network routing delay
     await new Promise(resolve => setTimeout(resolve, routingDuration))
@@ -463,7 +553,7 @@ export const useDispatchSystem = ({
       showMessage('No eligible units available.')
       return
     }
-    dispatchVehicle(incidentId, vehicleId)
+    dispatchVehicle(incidentId, vehicleId, 'quick')
   }
 
   return {
@@ -475,6 +565,7 @@ export const useDispatchSystem = ({
     getVehicleIneligibilityReason,
     getEligibleVehicleIds,
     getIncidentRequirementLines,
+    getDispatchRecommendation,
     dispatchVehicle,
     handleQuickDispatch,
   }
