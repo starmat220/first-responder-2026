@@ -235,6 +235,26 @@ const StationPanel = ({
       <div className="list-container station-content" style={{ padding: '0' }}>
         {resolvedStationTab === 'overview' && (
           <div className="department-module">
+            {/* Beginner callout: shown when station has no vehicles yet */}
+            {vehicles.length === 0 && (
+              <div className="beginner-banner" style={{ marginBottom: '12px' }}>
+                <div className="beginner-banner__icon">🚔</div>
+                <div className="beginner-banner__body">
+                  <p><strong>Your station has no units yet.</strong> Purchase a vehicle from the <em>Procurement</em> section below to start responding to incidents.</p>
+                  <p style={{ marginTop: '4px', color: 'var(--color-police)', fontWeight: 700, fontSize: '0.68rem' }}>
+                    NEXT STEP: Scroll down → Procurement → Buy a Patrol unit
+                  </p>
+                </div>
+              </div>
+            )}
+            {vehicles.length > 0 && vehicles.filter(v => v.crewAssigned < v.crewRequired).length > 0 && (
+              <div className="beginner-banner" style={{ marginBottom: '12px', borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.05)' }}>
+                <div className="beginner-banner__icon">👮</div>
+                <div className="beginner-banner__body">
+                  <p><strong>{vehicles.filter(v => v.crewAssigned < v.crewRequired).length} unit{vehicles.filter(v => v.crewAssigned < v.crewRequired).length !== 1 ? 's' : ''} need crew.</strong> Go to the <em>Personnel</em> tab to hire staff, then <em>Fleet</em> to assign crew to units.</p>
+                </div>
+              </div>
+            )}
             <div style={{ display: 'grid', gap: '16px' }}>
               <ModuleCard title="Immediate Actions">
                 <div className="station-action-row">
@@ -264,7 +284,24 @@ const StationPanel = ({
                 </div>
               </ModuleCard>
 
-              <ModuleCard title="Procurement" action={<span className="muted">{freeFleetSlots} slots free</span>}>
+              <ModuleCard
+                title="Procurement"
+                action={
+                  <div style={{ display: 'flex', align: 'center', gap: '6px' }}>
+                    <span className="muted">{freeFleetSlots} garage slot{freeFleetSlots !== 1 ? 's' : ''} free</span>
+                    {vehicles.length === 0 && (
+                      <span className="status-badge" style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)', fontSize: '0.48rem' }}>
+                        START HERE
+                      </span>
+                    )}
+                  </div>
+                }
+              >
+                {freeFleetSlots <= 0 && (
+                  <p className="muted" style={{ marginBottom: '8px', color: 'var(--color-ems)' }}>
+                    ⚠ Garage is full — expand garage first to purchase more units.
+                  </p>
+                )}
                 <div className="procurement-row">
                   {(availableUnits || []).length > 0 ? (
                     availableUnits.map((unit) => (
@@ -276,15 +313,16 @@ const StationPanel = ({
                         title={
                           freeFleetSlots <= 0
                             ? 'No garage slots available. Expand garage first.'
-                            : `Purchase ${unit.label}`
+                            : `Purchase ${unit.label} — needs 1 crew member to dispatch`
                         }
                       >
                         <span className="procurement-btn__label">{unit.label}</span>
                         <span className="procurement-btn__cost">${unitTypes[unit.id]?.cost ?? unit.cost}</span>
+                        {vehicles.length === 0 && <span style={{ fontSize: '0.5rem', color: 'var(--color-success)', display: 'block', marginTop: '2px' }}>← Buy this first</span>}
                       </button>
                     ))
                   ) : (
-                    <p className="muted">No additional unit types are available yet.</p>
+                    <p className="muted">No additional unit types are available yet. Resolve more calls to unlock.</p>
                   )}
                 </div>
               </ModuleCard>

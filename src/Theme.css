@@ -1642,3 +1642,1105 @@ body {
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
 }
+
+/* ========================================================
+   BEGINNER ONBOARDING & WELCOME STYLES
+   ======================================================== */
+
+/* Wider welcome modal for multi-step tutorial */
+.welcome-terminal--wide {
+  width: min(620px, 94vw) !important;
+}
+
+/* Welcome feature cards (intro step) */
+.welcome-feature-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.welcome-feature-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(96, 171, 255, 0.25);
+}
+
+/* Welcome input fields */
+.welcome-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  padding: 12px 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.welcome-input:focus {
+  border-color: var(--color-police);
+  box-shadow: 0 0 0 2px rgba(96, 171, 255, 0.2);
+}
+
+.welcome-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+  font-style: italic;
+}
+
+/* ========================================================
+   EMPTY STATES — for panels with no content yet
+   ======================================================== */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 20px;
+  gap: 12px;
+  color: var(--color-text-muted);
+}
+
+.empty-state__icon {
+  font-size: 2rem;
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+
+.empty-state__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.03em;
+}
+
+.empty-state__body {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+  max-width: 260px;
+}
+
+.empty-state__action {
+  background: rgba(96, 171, 255, 0.12);
+  border: 1px solid rgba(96, 171, 255, 0.35);
+  border-radius: 8px;
+  color: var(--color-police);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 8px 18px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.empty-state__action:hover {
+  background: rgba(96, 171, 255, 0.22);
+  box-shadow: 0 0 12px rgba(96, 171, 255, 0.2);
+}
+
+/* ========================================================
+   BEGINNER PROGRESS BANNER
+   Banner shown at top of station panel when player is new
+   ======================================================== */
+
+.beginner-banner {
+  background: linear-gradient(135deg, rgba(96, 171, 255, 0.08), rgba(16, 185, 129, 0.06));
+  border: 1px solid rgba(96, 171, 255, 0.2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.beginner-banner__icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.beginner-banner__body p {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #c8d8ea;
+}
+
+.beginner-banner__body strong {
+  color: #fff;
+}
+
+/* ========================================================
+   PROGRESS MILESTONE INDICATORS
+   ======================================================== */
+
+.milestone-track {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 0 4px;
+  overflow-x: auto;
+}
+
+.milestone-pip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.milestone-pip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.milestone-pip--done .milestone-pip__dot {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.milestone-pip--next .milestone-pip__dot {
+  background: rgba(96, 171, 255, 0.3);
+  border-color: var(--color-police);
+  animation: pulse-glow 2s infinite;
+}
+
+.milestone-pip__label {
+  font-size: 0.48rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  max-width: 44px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.milestone-pip--done .milestone-pip__label {
+  color: var(--color-success);
+}
+
+.milestone-pip--next .milestone-pip__label {
+  color: var(--color-police);
+}
+
+.milestone-connector {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  min-width: 12px;
+  max-width: 30px;
+}
+
+.milestone-connector--done {
+  background: var(--color-success);
+  opacity: 0.5;
+}
+
+/* ========================================================
+   DISPATCH QUICK-ACTION BADGE
+   Visible red dot on taskbar when incident needs dispatch
+   ======================================================== */
+
+.taskbar-item__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-urgent);
+  border: 2px solid var(--color-bg-dark);
+  font-size: 0.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 900;
+  animation: pulse-glow 1.5s infinite;
+}
+
+/* ========================================================
+   INCIDENT CARD IMPROVEMENTS
+   ======================================================== */
+
+/* Department color bars are clearer */
+.incident-card {
+  border-left-width: 4px !important;
+}
+
+/* Response timer urgency colors */
+.incident-card__timer--urgent {
+  color: var(--color-urgent) !important;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.incident-card__timer--warning {
+  color: var(--color-ems) !important;
+}
+
+/* Clearer "dispatch" action button */
+.dispatch-btn {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 6px;
+  color: var(--color-success);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.dispatch-btn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+  transform: translateY(-1px);
+}
+
+.dispatch-btn:active {
+  transform: translateY(0);
+}
+
+/* ========================================================
+   CONTEXTUAL TOOLTIPS (hover helper text)
+   ======================================================== */
+
+.ctx-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ctx-tip__trigger {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  font-weight: 700;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.ctx-tip__popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 14, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: 220px;
+  font-size: 0.65rem;
+  color: #c8d8ea;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2000;
+  white-space: normal;
+}
+
+.ctx-tip:hover .ctx-tip__popup,
+.ctx-tip:focus-within .ctx-tip__popup {
+  opacity: 1;
+}
+
+/* ========================================================
+   MAP OVERLAY: "Place Your HQ" prompt
+   ======================================================== */
+
+.map-place-prompt {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 50;
+  animation: float-gentle 3s ease-in-out infinite;
+}
+
+.map-place-prompt__bubble {
+  background: rgba(10, 14, 20, 0.95);
+  border: 2px solid var(--color-police);
+  border-radius: 14px;
+  padding: 18px 28px;
+  box-shadow: 0 0 40px rgba(96, 171, 255, 0.25);
+  display: inline-block;
+}
+
+.map-place-prompt__title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: #fff;
+  letter-spacing: 0.06em;
+}
+
+.map-place-prompt__body {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+@keyframes float-gentle {
+  0%, 100% { transform: translate(-50%, -60%); }
+  50% { transform: translate(-50%, -63%); }
+}
+
+/* ========================================================
+   XP / LEVEL PROGRESS BAR
+   ======================================================== */
+
+.xp-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.xp-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-police), #38d9a9);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ========================================================
+   DEBRIEF CARDS (after-action summaries)
+   ======================================================== */
+
+.debriefs__card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.debriefs__reward {
+  color: var(--color-success);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.debriefs__trust.up {
+  color: var(--color-success);
+}
+
+.debriefs__trust {
+  color: var(--color-urgent);
+  font-size: 0.68rem;
+}
+
+.debriefs__evidence {
+  color: var(--color-ems);
+  font-size: 0.68rem;
+}
+
+.debriefs__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* ========================================================
+   STATION OVERVIEW IMPROVEMENTS
+   ======================================================== */
+
+.station-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.7rem;
+}
+
+.station-stat-item:last-child {
+  border-bottom: none;
+}
+
+.station-stat-item__label {
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.station-stat-item__value {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ========================================================
+   MODULE CARDS (used in station panel)
+   ======================================================== */
+
+.module-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.module-card__header {
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.module-card__title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.module-card__body {
+  padding: 12px 14px;
+}
+
+/* ========================================================
+   MENU SHELL (Fleet, Incidents panels)
+   ======================================================== */
+
+.menu-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.menu-shell__header {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.menu-shell__title {
+  margin: 0 0 2px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.menu-shell__hint {
+  margin: 0;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.menu-shell__metrics {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.menu-stat-badge {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.menu-shell__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.menu-empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  padding: 32px 16px;
+  font-style: italic;
+}
+
+.menu-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.unit-level {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: rgba(96, 171, 255, 0.15);
+  border: 1px solid rgba(96, 171, 255, 0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--color-police);
+  vertical-align: middle;
+}
+
+/* ========================================================
+   SETTINGS PANEL ROWS
+   ======================================================== */
+
+.settings-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  gap: 12px;
+}
+
+.settings-row span strong {
+  display: block;
+  font-size: 0.75rem;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.settings-row span small {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+}
+
+.settings-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-police);
+  flex-shrink: 0;
+}
+
+.settings-row--actions {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.settings-row--actions .cmd-btn {
+  align-self: flex-end;
+}
+
+.settings-note {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0;
+  text-align: center;
+}
+
+/* ========================================================
+   TELEMETRY / INTEL PANEL
+   ======================================================== */
+
+.telemetry-grid {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.telemetry-row {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.telemetry-row__title {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.telemetry-row--goal-ready {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.telemetry-row--goal-highlight {
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+@keyframes goal-dismiss {
+  to { opacity: 0; transform: translateX(20px); height: 0; padding: 0; margin: 0; overflow: hidden; }
+}
+
+.telemetry-row--goal-dismiss {
+  animation: goal-dismiss 0.4s ease forwards;
+}
+
+.telemetry-goal__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+/* ========================================================
+   COMMAND HINT PANEL (Recommended Action)
+   Final canonical positioning
+   ======================================================== */
+
+.command-hint {
+  position: absolute !important;
+  top: 130px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: min(400px, 90vw) !important;
+  z-index: 400 !important;
+}
+
+/* ========================================================
+   TOAST NOTIFICATION
+   Final canonical positioning
+   ======================================================== */
+
+.toast {
+  position: absolute !important;
+  top: 96px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2000 !important;
+  background: rgba(12, 18, 26, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 2px solid var(--color-police) !important;
+  color: #fff !important;
+  padding: 12px 24px !important;
+  border-radius: 12px !important;
+  font-family: var(--font-display) !important;
+  font-size: 1rem !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  box-shadow: 0 0 30px rgba(96, 171, 255, 0.2) !important;
+}
+
+/* ========================================================
+   MODAL
+   ======================================================== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.modal__card {
+  background: rgba(12, 18, 26, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 0;
+  width: min(480px, 92vw);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.modal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px 10px;
+}
+
+/* Station card (used in follow-up modal) */
+.station-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 12px 4px;
+}
+
+.station-card__title {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.station-action-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  justify-content: flex-end;
+}
+
+/* textarea styling */
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'Consolas', 'Fira Code', monospace;
+  font-size: 0.65rem;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: rgba(96, 171, 255, 0.4);
+}
+
+/* ========================================================
+   STATION BADGE (Leaflet tooltip)
+   ======================================================== */
+
+.station-badge {
+  background: rgba(10, 14, 20, 0.92) !important;
+  border: 1px solid rgba(96, 171, 255, 0.3) !important;
+  border-radius: 6px !important;
+  padding: 3px 7px !important;
+  color: #fff !important;
+  font-size: 0.58rem !important;
+  font-family: var(--font-ui) !important;
+  white-space: nowrap !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.station-badge__name {
+  font-weight: 700;
+  color: #fff;
+}
+
+.station-badge__meta {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.52rem;
+}
+
+.prison-badge {
+  border-color: rgba(240, 170, 73, 0.4) !important;
+}
+
+.special-label {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #fca5a5 !important;
+}
+
+/* ========================================================
+   PRIORITY DISPLAY
+   ======================================================== */
+
+.priority-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.priority-tag--p1 {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.priority-tag--p2 {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.priority-tag--p3 {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+}
+
+/* ========================================================
+   MAP OVERLAY (no stations placed yet)
+   ======================================================== */
+
+.map-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.map-overlay p {
+  background: rgba(10, 14, 20, 0.95);
+  border: 2px dashed rgba(96, 171, 255, 0.4);
+  border-radius: 12px;
+  padding: 20px 32px;
+  color: var(--color-police);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(96, 171, 255, 0.15);
+  animation: float-gentle 3s ease-in-out infinite;
+}
+
+/* ========================================================
+   FLEET VEHICLE AVATAR
+   ======================================================== */
+
+.fleet-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ========================================================
+   PLACEMENT BAR
+   ======================================================== */
+
+.placement-bar--top {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* ========================================================
+   INLINE BUILD MENU
+   ======================================================== */
+
+.hud-build-inline select.cmd-select {
+  min-width: 200px;
+}
+
+/* ========================================================
+   INCIDENT POPUP (Leaflet)
+   ======================================================== */
+
+.incident-popup {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: #fff;
+  min-width: 180px;
+}
+
+.incident-popup__meta {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 4px 0;
+  font-size: 0.62rem;
+}
+
+.incident-popup__detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.62rem;
+}
+
+.popup-controls {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+/* ========================================================
+   ALERTS PANEL (command hints)
+   ======================================================== */
+
+.alerts {
+  position: absolute;
+  top: 96px;
+  left: 16px;
+  width: 280px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alerts__title {
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.alerts__item {
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.alerts__item .title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 2px;
+}
+
+.alerts__item .muted {
+  font-size: 0.62rem;
+}
+
+/* ========================================================
+   PANEL ANIMATION
+   ======================================================== */
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========================================================
+   MISC UTILITY
+   ======================================================== */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cmd-btn--small {
+  padding: 3px 8px !important;
+  font-size: 0.6rem !important;
+}
+
+/* Filter pill for incidents */
+.filter-pill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.6rem;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.filter-pill:hover,
+.filter-pill--active {
+  background: rgba(96, 171, 255, 0.12);
+  border-color: rgba(96, 171, 255, 0.35);
+  color: var(--color-police);
+}
+
+/* Test panel meta */
+.test-panel__meta {
+  padding: 8px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.test-panel__meta label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  flex: 1;
+}
+
+/* Marker department badge */
+.marker__dept {
+  display: inline-block;
+  font-size: 0.5rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+.marker__dept--police { background: rgba(59, 130, 246, 0.25); color: var(--color-police); }
+.marker__dept--fire   { background: rgba(239, 68, 68, 0.25); color: var(--color-fire); }
+.marker__dept--ems    { background: rgba(245, 158, 11, 0.25); color: var(--color-ems); }
+.marker__dept--tow    { background: rgba(234, 179, 8, 0.25); color: var(--color-tow); }
+.marker__dept--public_works { background: rgba(148, 163, 184, 0.2); color: var(--color-public_works); }

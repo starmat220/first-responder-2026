@@ -185,6 +185,7 @@ import { createPlaytestReport } from './game/playtest'
 import { migrateSaveData } from './game/migrations'
 import { getBalanceProfile } from './game/balance'
 import WelcomeMessage from './components/WelcomeMessage'
+import TutorialOverlay from './components/TutorialOverlay'
 import Window from './components/Window'
 import Topbar from './components/Topbar'
 import IncidentsPanel from './components/IncidentsPanel'
@@ -5369,6 +5370,8 @@ function App() {
               getVehicleIneligibilityReason={getVehicleIneligibilityReason}
               onQuickDispatch={handleQuickDispatch}
               getIncidentEdgePercent={getIncidentCrewEdgePercent}
+              hasStations={stations.length > 0}
+              hasVehicles={vehicles.length > 0}
             />
           </Window>
         )}
@@ -6004,9 +6007,9 @@ function App() {
           </aside>
         )}
 
-        {!stations.length && (
+        {!stations.length && !showWelcome && (
           <div className="map-overlay">
-            <p>Click "Place Station" then click the map to place your HQ.</p>
+            <p>📍 Click anywhere on the map to place your Police HQ</p>
           </div>
         )}
 
@@ -6024,6 +6027,33 @@ function App() {
             }}
           />
         )}
+
+        {/* In-game tutorial overlay for new players */}
+        {(() => {
+          const dismissed = tutorialFlags
+          let step = null
+          if (!showWelcome && stations.length === 0) {
+            step = null // Map overlay handles this phase
+          } else if (stations.length > 0 && vehicles.length === 0 && !dismissed.buy_vehicle) {
+            step = 'buy_vehicle'
+          } else if (vehicles.length > 0 && resolvedCount === 0 && incidents.filter(i => i.status === 'open').length > 0 && !dismissed.first_dispatch) {
+            step = 'first_dispatch'
+          } else if (resolvedCount === 1 && !dismissed.first_resolve) {
+            step = 'first_resolve'
+          }
+          if (!step) return null
+          return (
+            <TutorialOverlay
+              tutorialStep={step}
+              stations={stations}
+              vehicles={vehicles}
+              resolvedCount={resolvedCount}
+              onDismiss={(dismissedStep) => {
+                setTutorialFlags((prev) => ({ ...prev, [dismissedStep]: true }))
+              }}
+            />
+          )
+        })()}
 
         <div className="taskbar">
           <button
