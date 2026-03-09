@@ -184,6 +184,7 @@ import { createSaveExportPayload, parseSaveImportPayload, serializeSaveExport } 
 import { createPlaytestReport } from './game/playtest'
 import { migrateSaveData } from './game/migrations'
 import { getBalanceProfile } from './game/balance'
+import { resolveIncidentSpawnLocation } from './game/spawnLocation'
 import WelcomeMessage from './components/WelcomeMessage'
 import TutorialOverlay from './components/TutorialOverlay'
 import Window from './components/Window'
@@ -3302,30 +3303,15 @@ function App() {
     const anchor = preferredStation?.position || DEFAULT_CENTER
     const radiusKm = preferredStation?.operationRadiusKm || STATION_OPERATION_RADIUS_KM
 
-    let position = null
-    let foundValid = false
-    let roadName = 'Local Road'
+    const spawnLocation = await resolveIncidentSpawnLocation({
+      anchor,
+      radiusKm,
+      randomPointNear,
+      attempts: 5,
+      areaLabel: 'Oromocto',
+    })
 
-    for (let i = 0; i < 5; i++) {
-      const candidate = randomPointNear(anchor, radiusKm)
-      try {
-        const resp = await fetch(`https://router.project-osrm.org/nearest/v1/driving/${candidate[1]},${candidate[0]}?number=1`)
-        const data = await resp.json()
-        if (data.waypoints?.[0]?.distance < 60) {
-          const snapped = data.waypoints[0]
-          // Additional check for islands/water could go here, but for dev tool 
-          // a tight road snap is usually enough to avoid mid-river spawns.
-          position = [snapped.location[1], snapped.location[0]]
-          roadName = snapped.name || 'Local Road'
-          foundValid = true
-          break
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    if (!foundValid) {
+    if (!spawnLocation) {
       showMessage('Failed to find land for incident. Try again.')
       return
     }
@@ -3354,8 +3340,8 @@ function App() {
 
     spawnIncidentAt({
       type,
-      position,
-      address: `${roadName}, Oromocto`,
+      position: spawnLocation.position,
+      address: spawnLocation.address,
       caller: 'Testing panel',
       priority: departmentId === DEPARTMENTS.fire.id ? 1 : 2,
       requiredUnits,
@@ -3547,7 +3533,9 @@ function App() {
 
   const spawnIncidentAt = (options) => {
     const record = buildIncidentRecord(options)
-    setIncidents((prev) => [record, ...prev])
+    const nextIncidents = [record, ...(incidentsRef.current || [])]
+    incidentsRef.current = nextIncidents
+    setIncidents(nextIncidents)
     setCases((prev) => ensureCaseEntry(prev, record))
     handleIncidentSpawned(record)
   }

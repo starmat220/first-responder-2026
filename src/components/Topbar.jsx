@@ -91,9 +91,9 @@ const Topbar = ({
             {playerTitle} {playerName.toUpperCase()} · {station ? `ACTIVE: ${station.name}` : hasStations ? 'STATION DISCONNECTED' : 'SYSTEM OFFLINE'} · {phaseLabel}
           </p>
         </div>
-        <div className="hud-stat" style={{ marginLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '16px', borderRight: 'none' }}>
+        <div className="hud-stat hud-stat--time" style={{ marginLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '16px', borderRight: 'none' }}>
           <span className="label">TACTICAL TIME</span>
-          <span className="value" style={{ letterSpacing: '0.15em', fontSize: '1.2rem', color: 'var(--color-police)' }}>
+          <span className="value" style={{ color: 'var(--color-police)' }}>
             {tacticalTime}
           </span>
         </div>

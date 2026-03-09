@@ -326,14 +326,19 @@ export const useGameSimulation = ({
               const currentProgressMeters = Number.isFinite(vehicle.progressMeters)
                 ? vehicle.progressMeters
                 : 0
-              const progressedMeters = routeProgress.nextProgress - currentProgressMeters
+              const previousWatchdogProgress = Number.isFinite(vehicle.watchdogLastProgressMeters)
+                ? vehicle.watchdogLastProgressMeters
+                : currentProgressMeters
+              const progressedMeters = routeProgress.nextProgress - previousWatchdogProgress
               const hasProgressed = progressedMeters > STUCK_PROGRESS_EPSILON_METERS
               let watchdogStalledAt = hasProgressed
                 ? null
                 : Number.isFinite(vehicle.watchdogStalledAt)
                   ? vehicle.watchdogStalledAt
                   : nowMs
-              let watchdogLastProgressMeters = routeProgress.nextProgress
+              let watchdogLastProgressMeters = hasProgressed
+                ? routeProgress.nextProgress
+                : previousWatchdogProgress
               let watchdogRerouteUsed = !!vehicle.watchdogRerouteUsed
               let updatedVehicle = {
                 ...vehicle,

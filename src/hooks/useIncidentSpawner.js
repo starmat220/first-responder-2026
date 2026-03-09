@@ -23,10 +23,11 @@ import {
   getDistrictIdForPosition,
   getDistrictIncidentModifiers,
 } from '../game/campaign'
+import {
+  resolveIncidentSpawnLocation,
+} from '../game/spawnLocation'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
-
-const addressCache = new Map()
 
 const CALLERS = [
   'Alex Morgan',
@@ -601,78 +602,6 @@ const getIncidentRequirements = (type, departmentId = DEFAULT_DEPARTMENT_ID) => 
   }
 }
 
-const fetchWithTimeout = async (url, timeoutMs) => {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(url, { signal: controller.signal })
-  } finally {
-    clearTimeout(timeoutId)
-  }
-}
-
-const buildAddress = (address) => {
-  if (!address) return null
-  const road = address.road || address.pedestrian || address.footway || address.cycleway
-  const house = address.house_number
-  const locality =
-    address.city || address.town || address.village || address.hamlet || address.suburb
-  const parts = []
-  if (road) parts.push(house ? `${house} ${road}` : road)
-  if (locality) parts.push(locality)
-  return parts.length ? parts.join(', ') : null
-}
-
-const reverseGeocode = async (position) => {
-  const key = `${position[0].toFixed(4)},${position[1].toFixed(4)}`
-  if (addressCache.has(key)) return addressCache.get(key)
-  try {
-    const response = await fetchWithTimeout(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position[0]}&lon=${position[1]}&zoom=18&addressdetails=1`,
-      5000
-    )
-    if (!response.ok) {
-      addressCache.set(key, null)
-      return null
-    }
-    const data = await response.json()
-
-    // Safety: check for water or islands
-    const displayName = (data.display_name || '').toLowerCase()
-    const isIsland = displayName.includes(' island')
-    const isWater = data.category === 'natural' && data.type === 'water'
-
-    if (isIsland || isWater) {
-      addressCache.set(key, { invalid: true })
-      return { invalid: true }
-    }
-
-    const formatted = buildAddress(data.address)
-    const result = { address: formatted, data }
-    addressCache.set(key, result)
-    return result
-  } catch {
-    addressCache.set(key, null)
-    return null
-  }
-}
-
-const fetchNearestRoad = async (position) => {
-  const response = await fetch(
-    `https://router.project-osrm.org/nearest/v1/driving/${position[1]},${position[0]}?number=1`
-  )
-  if (!response.ok) return null
-  const data = await response.json()
-  if (!data.waypoints || !data.waypoints.length) return null
-  const point = data.waypoints[0]
-  if (!point.location) return null
-  return {
-    position: [point.location[1], point.location[0]],
-    name: point.name || 'Local Road',
-    distance: point.distance || 0,
-  }
-}
-
 export const useIncidentSpawner = ({
   stations,
   vehicles,
@@ -799,35 +728,18 @@ export const useIncidentSpawner = ({
         : [0, 0]
     const radiusKm = chosenStationForAnchor?.operationRadiusKm || stationRadiusKm || incidentRadiusKm
 
-    let position = null
-    let roadName = 'Local Road'
-    let finalAddress = null
-    let foundValidLand = false
+    const spawnLocation = await resolveIncidentSpawnLocation({
+      anchor,
+      radiusKm,
+      randomPointNear,
+      attempts: 8,
+      areaLabel: 'Oromocto',
+    })
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const candidate = randomPointNear(anchor, radiusKm)
-      try {
-        const snapped = await fetchNearestRoad(candidate)
-        // Snapping within 60m is generally safe for road-based incidents
-        if (snapped && snapped.distance < 60) {
-          const geoResult = await reverseGeocode(snapped.position)
-          if (geoResult && !geoResult.invalid) {
-            position = snapped.position
-            roadName = snapped.name
-            finalAddress = geoResult.address
-            foundValidLand = true
-            break
-          }
-        }
-      } catch {
-        // Skip and retry
-      }
-    }
-
-    if (!foundValidLand) {
-      // If we can't find land in 8 tries, skip this spawn cycle to avoid water/islands
+    if (!spawnLocation) {
       return false
     }
+    const { position, address: finalAddress } = spawnLocation
     const incidentDistrictId = getDistrictIdForPosition(position, {
       center,
       unlockedDistrictIds,
@@ -889,7 +801,7 @@ export const useIncidentSpawner = ({
       priority = Math.max(2, priority)
     }
 
-    const incidentAddress = finalAddress || `${roadName}, Oromocto`
+    const incidentAddress = finalAddress || 'Local Road, Oromocto'
     const normalizedType = String(type || '').trim().toLowerCase()
     const normalizedAddress = String(incidentAddress || '').trim().toLowerCase()
     const activeStatuses = [
