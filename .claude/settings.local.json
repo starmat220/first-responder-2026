@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(npm run lint)",
+      "Read(//f/Linux_Game/First_Responder_2026_v001/**)",
+      "Bash(npm install)",
+      "Bash(npm install --ignore-scripts)",
+      "Bash(npm install --force)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm --version)",
+      "Bash(grep -n \"fetchNearestRoad\\\\|OSRM\\\\|osrm\\\\|router.project\" /f/Linux_Game/First_Responder_2026_v001/.claude/worktrees/sad-tharp/src/game/*.js)",
+      "Bash(where npm)",
+      "Bash(ls /f/Linux_Game/First_Responder_2026_v001/.claude/worktrees/sad-tharp/node_modules/.bin/vite*)",
+      "Bash(ls /f/Linux_Game/First_Responder_2026_v001/node_modules/.bin/vite*)",
+      "Bash(node --version)",
+      "Bash(where node)"
+    ]
+  }
+}
