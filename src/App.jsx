@@ -510,9 +510,9 @@ function App() {
   const [sessionStats, setSessionStats] = useState(createDefaultSessionStats)
   const [showNextSteps, setShowNextSteps] = useState(true)
   const [rememberWindowPositions, setRememberWindowPositions] = useState(false)
-  const [showTestPanel, setShowTestPanel] = useState(true)
-  const [showRadio, setShowRadio] = useState(true)
-  const [showAlerts, setShowAlerts] = useState(true)
+  const [showTestPanel, setShowTestPanel] = useState(false)
+  const [showRadio, setShowRadio] = useState(false)
+  const [showAlerts, setShowAlerts] = useState(false)
   const [showResearch, setShowResearch] = useState(false)
   const [unlockedTech, setUnlockedTech] = useState([])
   const [tuningPresetId, setTuningPresetId] = useState(DEFAULT_TUNING_PRESET_ID)
@@ -1424,7 +1424,9 @@ function App() {
     setShowNextSteps(true)
     setRememberWindowPositions(false)
     setAccessibilityState(DEFAULT_ACCESSIBILITY_STATE)
-    setShowTestPanel(true)
+    setShowTestPanel(false)
+    setShowRadio(false)
+    setShowAlerts(false)
     resetFocusMode()
     setIncidentFilters({
       type: 'all',
@@ -4916,7 +4918,7 @@ function App() {
           </Window>
         )}
 
-        {!showTestPanel && (
+        {!showTestPanel && stations.length > 0 && (
           <button className="cmd-btn test-panel-toggle" onClick={() => setShowTestPanel(true)}>
             TEST TOOLS
           </button>
@@ -6007,11 +6009,6 @@ function App() {
           </aside>
         )}
 
-        {!stations.length && !showWelcome && (
-          <div className="map-overlay">
-            <p>📍 Click anywhere on the map to place your Police HQ</p>
-          </div>
-        )}
 
         {showWelcome && !stations.length && (
           <WelcomeMessage
