@@ -14,7 +14,9 @@
       "Bash(ls /f/Linux_Game/First_Responder_2026_v001/.claude/worktrees/sad-tharp/node_modules/.bin/vite*)",
       "Bash(ls /f/Linux_Game/First_Responder_2026_v001/node_modules/.bin/vite*)",
       "Bash(node --version)",
-      "Bash(where node)"
+      "Bash(where node)",
+      "Bash(tasklist)",
+      "Bash(npm run dev -- --port 5173)"
     ]
   }
 }
