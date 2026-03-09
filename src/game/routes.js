@@ -57,7 +57,10 @@ const fetchWithTimeout = async (url, timeoutMs) => {
   }
 }
 
-export const buildRoute = async (start, end) => {
+export const buildRoute = async (start, end, isAviation = false) => {
+  if (isAviation) {
+    return buildRouteData(buildFallbackRoute(start, end))
+  }
   try {
     const response = await fetchWithTimeout(
       `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&annotations=speed`,

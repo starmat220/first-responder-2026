@@ -1,65 +1,245 @@
-const DEPARTMENT_FILTERS = [
-  { id: 'all', label: 'All Depts' },
-  { id: 'police', label: 'Police' },
-  { id: 'fire', label: 'Fire' },
-  { id: 'ems', label: 'EMS' },
-  { id: 'tow', label: 'Tow' },
-]
+import React from 'react'
+import '../Theme.css'
 
 const DEPARTMENT_META = {
-  police: { label: 'Police', short: 'PD' },
-  fire: { label: 'Fire', short: 'FD' },
-  ems: { label: 'EMS', short: 'EMS' },
-  tow: { label: 'Tow', short: 'TOW' },
-}
-const DEPARTMENT_TINT_RGB = {
-  police: '96, 171, 255',
-  fire: '255, 122, 101',
-  ems: '255, 178, 84',
-  tow: '255, 209, 125',
+  police: { label: 'Police', short: 'PD', color: 'var(--color-police)' },
+  fire: { label: 'Fire', short: 'FD', color: 'var(--color-fire)' },
+  ems: { label: 'EMS', short: 'EMS', color: 'var(--color-ems)' },
+  tow: { label: 'Tow', short: 'TOW', color: 'var(--color-tow)' },
+  public_works: { label: 'Public Works', short: 'PW', color: 'var(--color-public_works)' },
 }
 
-const getDepartmentId = (departmentId) => DEPARTMENT_META[departmentId] ? departmentId : 'police'
-const getDepartmentLabel = (departmentId) =>
-  DEPARTMENT_META[getDepartmentId(departmentId)]?.label || 'Police'
-const getDepartmentShort = (departmentId) =>
-  DEPARTMENT_META[getDepartmentId(departmentId)]?.short || 'PD'
-const getIncidentDepartments = (incident) => {
-  const departments = new Set([getDepartmentId(incident.requiredDepartment)])
-  ;['requiredDepartments', 'coResponseDepartments', 'assistDepartments'].forEach((key) => {
-    const list = incident?.[key]
-    if (!Array.isArray(list)) return
-    list.forEach((departmentId) => departments.add(getDepartmentId(departmentId)))
-  })
-  return Array.from(departments)
+const PRIORITY_LABELS = {
+  1: { label: 'P1 CRITICAL', color: 'var(--color-urgent)' },
+  2: { label: 'P2 URGENT', color: 'var(--color-ems)' },
+  3: { label: 'P3 ROUTINE', color: 'var(--color-public_works)' },
 }
-const buildIncidentTintStyle = (departmentIds) => {
-  const ids = Array.isArray(departmentIds) && departmentIds.length
-    ? departmentIds.map(getDepartmentId)
-    : ['police']
-  const stop = 100 / ids.length
-  const tintStops = ids
-    .map((id, index) => {
-      const rgb = DEPARTMENT_TINT_RGB[id] || DEPARTMENT_TINT_RGB.police
-      const start = Math.round(index * stop)
-      const end = Math.round((index + 1) * stop)
-      return `rgba(${rgb}, 0.12) ${start}%, rgba(${rgb}, 0.07) ${end}%`
-    })
-    .join(', ')
-  const stripStops = ids
-    .map((id, index) => {
-      const rgb = DEPARTMENT_TINT_RGB[id] || DEPARTMENT_TINT_RGB.police
-      const start = Math.round(index * stop)
-      const end = Math.round((index + 1) * stop)
-      return `rgba(${rgb}, 0.88) ${start}%, rgba(${rgb}, 0.88) ${end}%`
-    })
-    .join(', ')
-  const leadRgb = DEPARTMENT_TINT_RGB[ids[0]] || DEPARTMENT_TINT_RGB.police
-  return {
-    '--incident-tint-bg': `linear-gradient(142deg, ${tintStops})`,
-    '--incident-strip': `linear-gradient(180deg, ${stripStops})`,
-    '--incident-border': `rgba(${leadRgb}, 0.34)`,
-  }
+
+const getIncidentColor = (deptId) => DEPARTMENT_META[deptId]?.color || 'var(--color-police)'
+const getDeptLabel = (deptId) => DEPARTMENT_META[deptId]?.label || 'Unknown'
+
+const getTimerClass = (timeRemaining, responseTarget) => {
+  if (!timeRemaining || !responseTarget) return ''
+  const ratio = timeRemaining / responseTarget
+  if (ratio < 0.2) return 'incident-card__timer--urgent'
+  if (ratio < 0.45) return 'incident-card__timer--warning'
+  return ''
+}
+
+const getSkillLabel = (deptId) => {
+  if (deptId === 'police') return 'TACTICAL EDGE'
+  if (deptId === 'fire') return 'SUPPRESSION'
+  if (deptId === 'ems') return 'TRIAGE SPEED'
+  if (deptId === 'public_works') return 'INFRA'
+  return 'RECOVERY'
+}
+
+const IncidentCard = ({
+  incident,
+  isCompact,
+  selectedId,
+  onSelect,
+  onDispatch,
+  eligibleIds = new Set(),
+  vehicles = [],
+  getReason,
+  formatSeconds = (s) => s,
+  onQuickDispatch,
+  getIncidentEdgePercent,
+}) => {
+  if (!incident) return null
+  const isOnScene = incident.status === 'on_scene'
+  const isResponding = incident.status === 'responding'
+  const isMajor = !!incident.isMajor
+  const deptColor = getIncidentColor(incident.requiredDepartment)
+  const activeColor = isOnScene ? 'var(--color-success)' : isMajor ? 'var(--color-urgent)' : deptColor
+  const canDispatch = eligibleIds && eligibleIds.size > 0
+  const priority = incident.priority || 2
+  const prioMeta = PRIORITY_LABELS[priority] || PRIORITY_LABELS[2]
+
+  const primaryVehicle = (isResponding || isOnScene)
+    ? vehicles.find(v => incident.assignedVehicleIds?.includes(v.id))
+    : null
+  const edgePercent = primaryVehicle
+    ? Math.max(0, Number(getIncidentEdgePercent?.(incident, primaryVehicle)) || 0)
+    : 0
+
+  const timerLabel = incident.status === 'open'
+    ? formatSeconds(incident.timeRemaining || 0)
+    : incident.status === 'responding'
+      ? `ETA ${formatSeconds(incident.etaSeconds || 0)}`
+      : incident.status === 'on_scene'
+        ? `ON SCENE ${formatSeconds(incident.onSceneRemaining || 0)}`
+        : incident.status.toUpperCase()
+
+  const timerColorClass = incident.status === 'open'
+    ? getTimerClass(incident.timeRemaining, incident.responseTargetSeconds)
+    : ''
+
+  const progress = isOnScene
+    ? ((incident.onSceneRemaining || 0) / (incident.onSceneDurationSeconds || 1))
+    : isResponding && primaryVehicle
+      ? (primaryVehicle.progressRatio || 0)
+      : ((incident.timeRemaining || 0) / (incident.responseTargetSeconds || 1))
+
+  const unitAssignedCount = incident.assignedVehicleIds?.length || 0
+  const unitRequired = incident.requiredUnits || 1
+  const needsMore = isOnScene && unitAssignedCount < unitRequired
+
+  return (
+    <div
+      className={[
+        'incident-card',
+        isCompact ? 'incident-card--compact' : '',
+        isResponding ? 'incident-card--responding' : '',
+        isMajor ? 'incident-card--major' : '',
+      ].filter(Boolean).join(' ')}
+      style={{ borderLeftColor: activeColor }}
+    >
+      {/* Header row */}
+      <div className="incident-card__header">
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', minWidth: 0 }}>
+          {isMajor && (
+            <div className="status-badge status-badge--live" style={{ background: 'var(--color-urgent)', color: '#fff', fontSize: '0.5rem' }}>
+              MAJOR
+            </div>
+          )}
+          {incident.status === 'open' && !isCompact && !isMajor && (
+            <div className="avatar avatar--officer" style={{ width: '28px', height: '28px', flexShrink: 0 }}>
+              <img src="/images/headshots/concerned_citizen.png" alt="Caller" />
+            </div>
+          )}
+          <div className="incident-card__badges" style={{ minWidth: 0 }}>
+            <span
+              className="status-badge"
+              style={{ borderColor: prioMeta.color, color: prioMeta.color, marginRight: '5px' }}
+              title={`Priority ${priority} — ${priority === 1 ? 'Life threatening, respond immediately' : priority === 2 ? 'Urgent situation' : 'Routine — lower penalty for late response'}`}
+            >
+              {prioMeta.label}
+            </span>
+            <span
+              className="incident-card__type"
+              style={{ color: isOnScene ? 'var(--color-success)' : isResponding ? 'var(--color-police)' : isMajor ? 'var(--color-urgent)' : '#fff' }}
+            >
+              {incident.type || 'Unknown Call'}
+            </span>
+          </div>
+        </div>
+        <div
+          className={`incident-card__timer ${timerColorClass}`}
+          style={{ color: isOnScene ? 'var(--color-success)' : isResponding ? 'var(--color-police)' : undefined, flexShrink: 0, fontWeight: timerColorClass ? 700 : 400 }}
+          title={
+            incident.status === 'open'
+              ? `${formatSeconds(incident.timeRemaining || 0)} until the response window closes`
+              : incident.status === 'responding'
+                ? `ETA — unit arriving in ${formatSeconds(incident.etaSeconds || 0)}`
+                : 'Unit is on scene'
+          }
+        >
+          {timerLabel}
+        </div>
+      </div>
+
+      {/* Body (full view only) */}
+      {!isCompact && (
+        <div className="incident-card__body">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+            <div>
+              <p className="muted" style={{ marginBottom: '2px' }}>
+                {incident.address || 'Location on map'}
+              </p>
+              <p className="muted" style={{ fontSize: '0.6rem', color: deptColor, opacity: 0.8 }}>
+                {getDeptLabel(incident.requiredDepartment)} · {unitRequired} unit{unitRequired !== 1 ? 's' : ''} required
+              </p>
+            </div>
+            {isMajor && (
+              <span className="status-badge" style={{ fontSize: '0.48rem', borderColor: 'var(--color-urgent)', color: 'var(--color-urgent)' }}>
+                MULTI-AGENCY
+              </span>
+            )}
+            {(isResponding || isOnScene) && primaryVehicle && !isMajor && (
+              <span className="status-badge" style={{ fontSize: '0.48rem', opacity: 0.75 }}>
+                {getSkillLabel(incident.requiredDepartment)}: {edgePercent}%
+              </span>
+            )}
+          </div>
+
+          {/* Progress / journey bar */}
+          <div className={`incident-bar ${isResponding ? 'incident-bar--journey' : ''}`}>
+            {isResponding && (
+              <div
+                className="incident-unit-marker"
+                style={{
+                  left: `${progress * 100}%`,
+                  '--unit-color': getIncidentColor(primaryVehicle?.department || 'police'),
+                }}
+              >
+                {primaryVehicle?.id}
+              </div>
+            )}
+            <div
+              className="incident-bar__fill"
+              style={{
+                width: `${Math.max(0, Math.min(100, progress * 100))}%`,
+                background: isResponding ? 'rgba(255,255,255,0.12)' : activeColor,
+                opacity: isResponding ? 0.6 : 1,
+              }}
+            />
+          </div>
+
+          {/* Multi-unit status */}
+          {needsMore && (
+            <p style={{ margin: '4px 0 0', fontSize: '0.6rem', color: 'var(--color-ems)' }}>
+              ⚠ {unitRequired - unitAssignedCount} more unit{unitRequired - unitAssignedCount !== 1 ? 's' : ''} needed on scene
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Dispatch controls */}
+      {incident.status === 'open' && (
+        <div className="incident-card__actions" style={{ marginTop: isCompact ? 0 : '8px', gap: '6px' }}>
+          <select
+            className="cmd-select cmd-select--small"
+            value={selectedId || ''}
+            onChange={(e) => onSelect && onSelect(incident.id, e.target.value)}
+            disabled={!canDispatch}
+            title={canDispatch ? 'Select which unit to dispatch manually' : 'No available units for this incident type'}
+          >
+            {canDispatch
+              ? <option value="">Manual: Choose unit…</option>
+              : <option value="">No units available</option>
+            }
+            {vehicles.map(v => {
+              const reason = getReason ? getReason(v, incident) : ''
+              const isEligible = eligibleIds.has(v.id)
+              return (
+                <option key={v.id} value={v.id} disabled={!isEligible}>
+                  {v.name}{isEligible ? ' ✓' : reason ? ` (${reason})` : ''}
+                </option>
+              )
+            })}
+          </select>
+          <button
+            className="cmd-btn cmd-btn--primary"
+            onClick={() => onDispatch && onDispatch(incident.id, selectedId)}
+            disabled={!selectedId}
+            title={selectedId ? 'Dispatch selected unit' : 'Choose a unit first'}
+          >
+            SEND
+          </button>
+          <button
+            className="dispatch-btn"
+            onClick={() => onQuickDispatch && onQuickDispatch(incident.id)}
+            disabled={!canDispatch}
+            title="Quick Dispatch — automatically sends the best available unit"
+          >
+            ⚡ QUICK
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const IncidentsPanel = ({
@@ -69,316 +249,116 @@ const IncidentsPanel = ({
   dispatchVehicle,
   vehicles,
   formatSeconds,
-  getPriorityConfig,
   getEligibleVehicleIds,
-  getRequiredUnits,
-  canDispatchIncident,
   filters,
-  activeDepartmentId,
   setFilters,
-  incidentTypeOptions,
-  departmentCounts,
-  onSceneSeconds,
   getVehicleIneligibilityReason,
-  getIncidentRequirementLines,
   onQuickDispatch,
-  formatVehicleUnitLabel,
-  focusMode,
-  focusDepartmentId,
-  dispatchRecommendations,
-  onDispatchRecommendation,
-  onDispatchAllRecommendations,
-}) => (
-  <div className="panel incidents-panel">
-    <div className="panel__header">
-      <div>
-        <p className="eyebrow">Incidents</p>
-        <p className="muted">Filter active calls</p>
-      </div>
-      <div className="filter-row">
-        <button
-          className={`filter-pill ${Object.values(filters.priority).every(Boolean) ? 'filter-pill--active' : ''}`}
-          onClick={() =>
-            setFilters((prev) => ({
-              ...prev,
-              priority: { 1: true, 2: true, 3: true },
-            }))
-          }
-        >
-          All
-        </button>
-        {[1, 2, 3].map((priority) => (
-          <button
-            key={priority}
-            className={`filter-pill filter-pill--p${priority} ${
-              filters.priority[priority] ? 'filter-pill--active' : ''
-            }`}
-            onClick={() =>
-              setFilters((prev) => ({
-                ...prev,
-                priority: {
-                  ...prev.priority,
-                  [priority]: !prev.priority[priority],
-                },
-              }))
+  getIncidentEdgePercent,
+  hasStations,
+  hasVehicles,
+}) => {
+  const openCount = incidents.filter((i) => i.status === 'open').length
+  const respondingCount = incidents.filter((i) => i.status === 'responding').length
+  const onSceneCount = incidents.filter((i) => i.status === 'on_scene').length
+  const activeCount = openCount + respondingCount + onSceneCount
+
+  return (
+    <div className="panel-content-only menu-shell">
+      <div className="menu-shell__header">
+        <div>
+          <p className="menu-shell__title">Dispatch Queue</p>
+          <p className="menu-shell__hint">
+            {activeCount === 0
+              ? 'All clear — no active incidents right now.'
+              : `${openCount} awaiting dispatch · ${respondingCount} en route · ${onSceneCount} on scene`
             }
-          >
-            P{priority}
-          </button>
-        ))}
-        {DEPARTMENT_FILTERS.map((department) => (
-          <button
-            key={department.id}
-            className={`filter-pill ${filters.department === department.id ? 'filter-pill--active' : ''}`}
-            onClick={() =>
-              setFilters((prev) => ({
-                ...prev,
-                department: department.id,
-              }))
-            }
-          >
-            {department.label}
-            {department.id !== 'all' ? ` (${departmentCounts?.[department.id] || 0})` : ''}
-          </button>
-        ))}
-        <button
-          className={`filter-pill ${filters.onlyActiveDepartment ? 'filter-pill--active' : ''}`}
-          onClick={() =>
-            setFilters((prev) => ({
-              ...prev,
-              onlyActiveDepartment: !prev.onlyActiveDepartment,
-            }))
-          }
-        >
-          {filters.onlyActiveDepartment
-            ? `Active Dept: ${getDepartmentLabel(activeDepartmentId || 'police')}`
-            : 'Active Dept'}
-        </button>
-        <select
-          className="filter-select"
-          value={filters.type}
-          onChange={(event) =>
-            setFilters((prev) => ({
-              ...prev,
-              type: event.target.value,
-            }))
-          }
-        >
-          {incidentTypeOptions.map((type) => (
-            <option key={type} value={type}>
-              {type === 'all' ? 'All types' : type}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
-    <div className="priority-guide priority-guide--inline">
-      <span className="priority-guide__title">Priority</span>
-      {[1, 2, 3].map((priority) => {
-        const config = getPriorityConfig(priority)
-        return (
-          <span key={`guide-${priority}`} className={`priority-guide__pill priority-guide__pill--p${priority}`}>
-            {config.label} · {formatSeconds(config.responseTargetSeconds)}
-          </span>
-        )
-      })}
-    </div>
-    {dispatchRecommendations?.length > 0 && (
-      <div className="dispatch-queue">
-        <div className="dispatch-queue__header">
-          <p className="station-card__title">Recommended Dispatch Queue</p>
-          <button className="btn btn--ghost btn--small" onClick={onDispatchAllRecommendations}>
-            Dispatch Queue
-          </button>
+          </p>
         </div>
-        {dispatchRecommendations.slice(0, 5).map((item) => (
-          <div key={`dispatch-rec-${item.incidentId}`} className="dispatch-queue__row">
-            <div>
-              <p className="title">
-                <span className={`priority-tag priority-tag--${item.priority}`}>
-                  {getPriorityConfig(item.priority).label}
-                </span>{' '}
-                {item.incidentType}
-              </p>
-              <p className="muted">
-                {getDepartmentShort(item.departmentId)} · {item.vehicleName}
-                {item.vehicleType ? ` (${item.vehicleType})` : ''}
-              </p>
-            </div>
-            <button
-              className="btn btn--small"
-              onClick={() => onDispatchRecommendation(item.incidentId, item.vehicleId)}
+        <div className="menu-shell__metrics">
+          {openCount > 0 && (
+            <span
+              className="menu-stat-badge"
+              style={{ borderColor: 'rgba(239,68,68,0.4)', color: 'var(--color-urgent)', background: 'rgba(239,68,68,0.08)' }}
             >
-              Dispatch
-            </button>
-          </div>
-        ))}
+              {openCount} need dispatch
+            </span>
+          )}
+          {activeCount > 0 && openCount === 0 && (
+            <span className="menu-stat-badge">{activeCount} active</span>
+          )}
+        </div>
       </div>
-    )}
-    <div className="list">
-      {incidents.length === 0 && <p className="muted">No incidents match filters.</p>}
-      {incidents.map((incident) => {
-        const departmentId = getDepartmentId(incident.requiredDepartment)
-        const incidentDepartments = getIncidentDepartments(incident)
-        const selectedId = getSelectedId(incident)
-        const eligibleIds = getEligibleVehicleIds(incident)
-        const canDispatch = canDispatchIncident(incident)
-        const requirementLines = canDispatch ? getIncidentRequirementLines(incident) : []
-        const assignedCount = incident.assignedVehicleIds?.length || 0
-        const requiredCount = getRequiredUnits(incident)
-        const needsMoreUnits = assignedCount > 0 && assignedCount < requiredCount
-        const quickDispatchLabel = needsMoreUnits ? 'Add Unit' : 'Quick Dispatch'
-        const useAutoDispatch = eligibleIds.size <= 1
-        const priorityActive = filters.priority[incident.priority]
-        const focusActive = focusMode && !!focusDepartmentId
-        const focusMatch = !focusActive || departmentId === focusDepartmentId
-        const progressBase =
-          incident.status === 'on_scene'
-            ? incident.onSceneRemaining || 0
-            : incident.timeRemaining || 0
-        const progressTotal =
-          incident.status === 'on_scene' ? onSceneSeconds : incident.responseTargetSeconds
-        const progressRatio =
-          progressTotal > 0 ? Math.max(0, Math.min(1, progressBase / progressTotal)) : 0
-        const departmentLine =
-          incidentDepartments.length > 1
-            ? incidentDepartments.map((id) => getDepartmentLabel(id)).join(' + ')
-            : getDepartmentLabel(departmentId)
-        return (
-          <div
-            key={incident.id}
-            className={`list-item list-item--stack incident-item incident-item--${departmentId} ${
-              priorityActive ? '' : 'list-item--dim'
-            } ${focusMatch ? '' : 'list-item--focus-dim'} ${
-              incidentDepartments.length > 1 ? 'incident-item--mixed' : ''
-            }`}
-            style={buildIncidentTintStyle(incidentDepartments)}
-          >
-            <div>
-              <p className="title">
-                <span className={`priority-tag priority-tag--${incident.priority}`}>
-                  {getPriorityConfig(incident.priority).label}
-                </span>
-                {incidentDepartments.map((department) => (
-                  <span key={`${incident.id}-${department}`} className={`incident-dept-chip incident-dept-chip--${department}`}>
-                    {getDepartmentShort(department)}
-                  </span>
-                ))}{' '}
-                {incident.type}
-              </p>
-              <p className="muted">
-                {incident.status.replaceAll('_', ' ')}
-                {incident.status === 'open' &&
-                  ` - Dispatch in ${formatSeconds(incident.timeRemaining || 0)}`}
-                {incident.status === 'responding' &&
-                  ` - ETA ${formatSeconds(incident.etaSeconds)}`}
-                {incident.status === 'on_scene' &&
-                  ` - On scene ${formatSeconds(incident.onSceneRemaining)}`}
-                {incident.status === 'resolved' && ' - Resolved'}
-                {incident.status === 'missed' && ' - Missed'}
-              </p>
-              <p className="muted">
-                {incidentDepartments.length > 1 ? 'Departments' : 'Department'}: {departmentLine}
-              </p>
-              {incidentDepartments.includes(activeDepartmentId || 'police') && (
-                <p className="muted">Ownership: Active station department</p>
-              )}
-              <p className="muted">
-                Units {(incident.assignedVehicleIds?.length || 0)}/{getRequiredUnits(incident)}
-                {incident.requiredUnitType
-                  ? ` - ${incident.requiredUnitType.toUpperCase()}`
-                  : ''}
-              </p>
-              {incident.stageLabel && (
-                <p className="muted">Stage: {incident.stageLabel}</p>
-              )}
-              {incident.caseId && (
-                <p className="muted">
-                  Case #{incident.caseId} · Evidence {incident.caseScore ?? 0}
-                </p>
-              )}
-            </div>
-            <div className="incident-bar">
-              <span
-                className={`incident-bar__fill incident-bar__fill--p${incident.priority} ${
-                  incident.status === 'on_scene' ? 'incident-bar__fill--scene' : ''
-                }`}
-                style={{ width: `${Math.round(progressRatio * 100)}%` }}
-              />
-            </div>
-            {requirementLines.length > 0 && (
-              <div className="incident-requirements">
-                {requirementLines.map((line) => (
-                  <span key={line} className="incident-requirements__item">
-                    {line}
-                  </span>
-                ))}
-              </div>
-            )}
-            {canDispatch && (
-              <div className="list-controls">
-                {useAutoDispatch ? (
-                  <button
-                    className="btn btn--small"
-                    onClick={() => onQuickDispatch(incident.id)}
-                    disabled={eligibleIds.size === 0}
-                  >
-                    Dispatch Best Unit
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      className="btn btn--ghost btn--small"
-                      onClick={() => onQuickDispatch(incident.id)}
-                      disabled={eligibleIds.size === 0}
-                    >
-                      {quickDispatchLabel}
-                    </button>
-                    <select
-                      value={selectedId}
-                      onChange={(event) =>
-                        setDispatchSelection((prev) => ({
-                          ...prev,
-                          [incident.id]: Number(event.target.value),
-                        }))
-                      }
-                      disabled={!vehicles.length}
-                    >
-                      {!vehicles.length && <option value="">No units</option>}
-                      {vehicles.map((vehicle) => {
-                        const reason = getVehicleIneligibilityReason(vehicle, incident)
-                        return (
-                        <option
-                          key={vehicle.id}
-                          value={vehicle.id}
-                          disabled={!eligibleIds.has(vehicle.id)}
-                        >
-                          {vehicle.name} {formatVehicleUnitLabel ? formatVehicleUnitLabel(vehicle) : vehicle.unitType}
-                          {reason ? ` (${reason})` : ''}
-                        </option>
-                      )})}
-                    </select>
-                    <button
-                      className="btn btn--small"
-                      onClick={() =>
-                        dispatchVehicle(
-                          incident.id,
-                          selectedId === '' ? undefined : Number(selectedId)
-                        )
-                      }
-                      disabled={!eligibleIds.has(Number(selectedId))}
-                    >
-                      Dispatch
-                    </button>
-                  </>
-                )}
-              </div>
+
+      {/* View toggle */}
+      <div style={{ padding: '6px 10px', display: 'flex', gap: '6px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <button
+          className={`cmd-btn cmd-btn--small ${!filters.isCompact ? 'cmd-btn--primary' : ''}`}
+          onClick={() => setFilters((p) => ({ ...p, isCompact: false }))}
+          title="Show full incident details"
+        >
+          Full
+        </button>
+        <button
+          className={`cmd-btn cmd-btn--small ${filters.isCompact ? 'cmd-btn--primary' : ''}`}
+          onClick={() => setFilters((p) => ({ ...p, isCompact: true }))}
+          title="Compact list — more incidents visible at once"
+        >
+          Compact
+        </button>
+        <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', fontSize: '0.58rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ color: 'var(--color-urgent)' }}>■</span> P1 &nbsp;
+          <span style={{ color: 'var(--color-ems)' }}>■</span> P2 &nbsp;
+          <span style={{ color: 'var(--color-public_works)' }}>■</span> P3
+        </span>
+      </div>
+
+      <div className="list-container menu-shell__body">
+        {incidents.length === 0 ? (
+          <div className="empty-state">
+            {!hasStations ? (
+              <>
+                <div className="empty-state__icon">🏛️</div>
+                <p className="empty-state__title">No Station Placed</p>
+                <p className="empty-state__body">Place your HQ on the map first. Incidents will begin appearing once you have a station active.</p>
+              </>
+            ) : !hasVehicles ? (
+              <>
+                <div className="empty-state__icon">🚔</div>
+                <p className="empty-state__title">No Units Deployed</p>
+                <p className="empty-state__body">Open your station and purchase at least one patrol unit. Incidents spawn once dispatch is ready.</p>
+              </>
+            ) : (
+              <>
+                <div className="empty-state__icon">✅</div>
+                <p className="empty-state__title">All Clear</p>
+                <p className="empty-state__body">No incidents at the moment. Keep an eye here — calls come in automatically.</p>
+              </>
             )}
           </div>
-        )
-      })}
+        ) : (
+          <div className="menu-card-list">
+            {incidents.map((inc) => (
+              <IncidentCard
+                key={inc.id}
+                incident={inc}
+                isCompact={filters.isCompact}
+                selectedId={getSelectedId(inc)}
+                onSelect={(incId, val) => setDispatchSelection((p) => ({ ...p, [incId]: Number(val) }))}
+                onDispatch={dispatchVehicle}
+                eligibleIds={getEligibleVehicleIds(inc)}
+                vehicles={vehicles}
+                getReason={getVehicleIneligibilityReason}
+                formatSeconds={formatSeconds}
+                onQuickDispatch={onQuickDispatch}
+                getIncidentEdgePercent={getIncidentEdgePercent}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export default IncidentsPanel

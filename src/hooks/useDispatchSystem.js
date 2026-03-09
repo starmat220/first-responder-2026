@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { buildRoute } from '../game/routes'
 import { getTravelSpeedKph } from '../game/speed'
 import { getCrewRequirement } from '../game/crew'
+import { getUnitById } from '../game/catalog'
 import {
   DEFAULT_CENTER,
   DISPATCHABLE_STATUSES,
@@ -12,6 +13,119 @@ import {
 import { DEFAULT_DEPARTMENT_ID } from '../game/departments'
 import { clamp } from '../game/utils'
 import { haversineMeters } from '../game/geo'
+
+const isSevereWeather = (weather) =>
+  ['storm', 'blizzard', 'snow'].includes(weather?.condition) || Number(weather?.intensity || 0) >= 0.72
+
+const getPriorityRoleFit = (vehicle, incident) => {
+  const requiredType = incident?.requiredUnitType && incident.requiredUnitType !== 'any'
+    ? incident.requiredUnitType
+    : null
+  if (requiredType) {
+    return vehicle.unitType === requiredType ? 2.5 : -4
+  }
+
+  const priority = Number(incident?.priority) || 2
+  if (priority <= 1) {
+    if (vehicle.unitType === 'supervisor') return 1.2
+    if (vehicle.unitType === 'traffic') return 0.9
+    return 0.2
+  }
+  if (priority >= 3) {
+    if (vehicle.unitType === 'patrol') return 0.8
+    if (vehicle.unitType === 'supervisor') return -0.7
+    return 0.1
+  }
+  return 0.35
+}
+
+export const getDispatchCandidateBreakdown = ({
+  vehicle,
+  incident,
+  weather,
+  bonus = 0,
+  departmentBonus = 0,
+}) => {
+  const distanceMeters = haversineMeters(vehicle.position, incident.position)
+  const speedKph = Math.max(30, Number(vehicle.speedKph) || 45)
+  const etaSeconds = distanceMeters / ((speedKph * 1000) / 3600)
+  const fatigue = clamp(Number(vehicle.fatigue) || 0, 0, 100)
+  const crewRequired = getCrewRequirement(vehicle.unitType)
+  const crewAssigned = Number(vehicle.crewAssigned) || 0
+  const crewMargin = Math.max(0, crewAssigned - crewRequired)
+  const roleFitScore = getPriorityRoleFit(vehicle, incident)
+  const statusScore =
+    vehicle.status === VEHICLE_STATUS.available
+      ? 2.2
+      : vehicle.status === VEHICLE_STATUS.returning
+        ? 0.8
+        : 0
+  const weatherScore =
+    isSevereWeather(weather) &&
+    (vehicle.unitType === 'traffic' || vehicle.unitType === 'supervisor')
+      ? 0.45
+      : 0
+
+  const components = {
+    etaPenalty: -(etaSeconds / 220),
+    distancePenalty: -(distanceMeters / 1300),
+    roleFitScore,
+    crewScore: Math.min(crewMargin, 3) * 1.1,
+    fatiguePenalty: -(fatigue / 22),
+    statusScore,
+    weatherScore,
+    specializationScore: Number(bonus) || 0,
+    departmentScore: Number(departmentBonus) || 0,
+  }
+
+  const score = Object.values(components).reduce((sum, value) => sum + value, 0)
+  return {
+    score,
+    etaSeconds,
+    distanceMeters,
+    crewMargin,
+    fatigue,
+    components,
+  }
+}
+
+export const getDispatchCandidateScore = ({
+  vehicle,
+  incident,
+  weather,
+  bonus = 0,
+  departmentBonus = 0,
+}) =>
+  getDispatchCandidateBreakdown({
+    vehicle,
+    incident,
+    weather,
+    bonus,
+    departmentBonus,
+  }).score
+
+export const rankDispatchCandidates = ({
+  incident,
+  vehicles,
+  weather,
+  departmentDispatchModifiers = null,
+  getVehicleDispatchBonus = null,
+}) =>
+  [...(vehicles || [])]
+    .map((vehicle) => ({
+      vehicle,
+      score: getDispatchCandidateScore({
+        vehicle,
+        incident,
+        weather,
+        bonus: getVehicleDispatchBonus ? getVehicleDispatchBonus(vehicle, incident) : 0,
+        departmentBonus:
+          departmentDispatchModifiers?.[vehicle.department || DEFAULT_DEPARTMENT_ID]
+            ?.dispatchScoreBonus || 0,
+      }),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.vehicle)
 
 export const useDispatchSystem = ({
   incidentsRef,
@@ -24,6 +138,12 @@ export const useDispatchSystem = ({
   showMessage,
   getStationResponseBonus,
   simSpeedRef,
+  addRadioLogRef,
+  weather,
+  unlockedTech = [],
+  departmentDispatchModifiers = null,
+  getVehicleDispatchBonus = null,
+  onDispatchEvent = null,
 }) => {
   const pendingDispatchIdsRef = useRef(new Set())
 
@@ -45,6 +165,7 @@ export const useDispatchSystem = ({
   const isVehicleEligibleForIncident = (vehicle, incident) => {
     const requiredType = getRequiredUnitType(incident)
     const requiredDepartment = getRequiredDepartment(incident)
+    const validDepartments = [requiredDepartment, ...(incident.coResponseDepartments || [])]
     const crewRequired = getCrewRequirement(vehicle.unitType)
     const crewAssigned = Number(vehicle.crewAssigned) || 0
     return (
@@ -53,7 +174,7 @@ export const useDispatchSystem = ({
       vehicle.status !== VEHICLE_STATUS.off_shift &&
       !vehicle.returnDestinationType &&
       crewAssigned >= crewRequired &&
-      (!requiredDepartment || (vehicle.department || DEFAULT_DEPARTMENT_ID) === requiredDepartment) &&
+      validDepartments.includes(vehicle.department || DEFAULT_DEPARTMENT_ID) &&
       (!requiredType || vehicle.unitType === requiredType)
     )
   }
@@ -61,12 +182,13 @@ export const useDispatchSystem = ({
   const getVehicleIneligibilityReason = (vehicle, incident) => {
     const requiredType = getRequiredUnitType(incident)
     const requiredDepartment = getRequiredDepartment(incident)
+    const validDepartments = [requiredDepartment, ...(incident.coResponseDepartments || [])]
     if (vehicle.status === VEHICLE_STATUS.cooldown) return 'cooldown'
     if (vehicle.status === VEHICLE_STATUS.off_shift) return 'off shift'
     if (vehicle.returnDestinationType) return 'transporting detainee'
     if (!DISPATCHABLE_STATUSES.has(vehicle.status)) return 'busy'
-    if (requiredDepartment && (vehicle.department || DEFAULT_DEPARTMENT_ID) !== requiredDepartment) {
-      return `needs ${requiredDepartment}`
+    if (!validDepartments.includes(vehicle.department || DEFAULT_DEPARTMENT_ID)) {
+      return `needs ${validDepartments.join('/')}`
     }
     const crewRequired = getCrewRequirement(vehicle.unitType)
     const crewAssigned = Number(vehicle.crewAssigned) || 0
@@ -85,13 +207,14 @@ export const useDispatchSystem = ({
   const getEligibleVehicles = (incident) => {
     const requiredType = getRequiredUnitType(incident)
     const requiredDepartment = getRequiredDepartment(incident)
+    const validDepartments = [requiredDepartment, ...(incident.coResponseDepartments || [])]
     return vehiclesRef.current.filter(
       (vehicle) =>
         DISPATCHABLE_STATUSES.has(vehicle.status) &&
         vehicle.status !== VEHICLE_STATUS.cooldown &&
         vehicle.status !== VEHICLE_STATUS.off_shift &&
         !vehicle.returnDestinationType &&
-        (!requiredDepartment || (vehicle.department || DEFAULT_DEPARTMENT_ID) === requiredDepartment) &&
+        validDepartments.includes(vehicle.department || DEFAULT_DEPARTMENT_ID) &&
         (Number(vehicle.crewAssigned) || 0) >= getCrewRequirement(vehicle.unitType) &&
         (!requiredType || vehicle.unitType === requiredType)
     )
@@ -100,17 +223,61 @@ export const useDispatchSystem = ({
   const getClosestEligibleVehicleId = (incident) => {
     const eligible = getEligibleVehicles(incident)
     if (!eligible.length) return null
-    let closest = eligible[0]
-    let shortest = haversineMeters(eligible[0].position, incident.position)
-    for (let i = 1; i < eligible.length; i += 1) {
-      const candidate = eligible[i]
-      const distance = haversineMeters(candidate.position, incident.position)
-      if (distance < shortest) {
-        shortest = distance
-        closest = candidate
-      }
+    const ranked = rankDispatchCandidates({
+      incident,
+      vehicles: eligible,
+      weather,
+      departmentDispatchModifiers,
+      getVehicleDispatchBonus,
+    })
+    return ranked[0]?.id || null
+  }
+  const getDispatchRecommendation = (incident) => {
+    const eligible = getEligibleVehicles(incident)
+    if (!eligible.length) return null
+    const ranked = rankDispatchCandidates({
+      incident,
+      vehicles: eligible,
+      weather,
+      departmentDispatchModifiers,
+      getVehicleDispatchBonus,
+    })
+    const best = ranked[0]
+    if (!best) return null
+    const breakdown = getDispatchCandidateBreakdown({
+      vehicle: best,
+      incident,
+      weather,
+      bonus: getVehicleDispatchBonus ? getVehicleDispatchBonus(best, incident) : 0,
+      departmentBonus:
+        departmentDispatchModifiers?.[best.department || DEFAULT_DEPARTMENT_ID]
+          ?.dispatchScoreBonus || 0,
+    })
+    const reasons = []
+    reasons.push(`ETA ${Math.max(1, Math.round(breakdown.etaSeconds))}s`)
+    if (breakdown.crewMargin > 0) {
+      reasons.push(`crew +${breakdown.crewMargin}`)
     }
-    return closest?.id || null
+    if (breakdown.components.roleFitScore >= 1) {
+      reasons.push('priority fit')
+    }
+    if (breakdown.fatigue <= 20) {
+      reasons.push('low fatigue')
+    }
+    if (breakdown.components.specializationScore > 0.25) {
+      reasons.push('specialized unit')
+    }
+    if (breakdown.components.departmentScore > 0.25) {
+      reasons.push('dept doctrine bonus')
+    }
+    return {
+      vehicleId: best.id,
+      vehicleName: best.name,
+      unitType: best.unitType,
+      score: breakdown.score,
+      reasons,
+      summary: `${best.name}: ${reasons.slice(0, 3).join(', ')}`,
+    }
   }
 
   const getIncidentRequirementLines = (incident) => {
@@ -133,7 +300,7 @@ export const useDispatchSystem = ({
     return lines
   }
 
-  const dispatchVehicle = async (incidentId, requestedVehicleId) => {
+  const dispatchVehicle = async (incidentId, requestedVehicleId, source = 'manual') => {
     if (pendingDispatchIdsRef.current.has(incidentId)) {
       showMessage('Dispatch already in progress.')
       return
@@ -164,12 +331,48 @@ export const useDispatchSystem = ({
       return
     }
     const neededUnits = requiredUnits - alreadyAssigned.length
-    const selectionPool = eligibleVehicles.filter((vehicle) => !alreadyAssigned.includes(vehicle.id))
+    const selectionPool = [...eligibleVehicles].filter((vehicle) => !alreadyAssigned.includes(vehicle.id))
+
+    const rankedPool = rankDispatchCandidates({
+      incident,
+      vehicles: selectionPool,
+      weather,
+      departmentDispatchModifiers,
+      getVehicleDispatchBonus,
+    })
+
+    const validDepartments = [incident.requiredDepartment || DEFAULT_DEPARTMENT_ID, ...(incident.coResponseDepartments || [])]
+    const assignedDepts = alreadyAssigned.map(id => {
+      const v = vehiclesRef.current.find(curr => curr.id === id)
+      return v?.department || DEFAULT_DEPARTMENT_ID
+    })
+    const neededDepts = [...validDepartments]
+    assignedDepts.forEach(d => {
+      const idx = neededDepts.indexOf(d)
+      if (idx > -1) neededDepts.splice(idx, 1)
+    })
+
     const chosenVehicles = []
     if (selectedVehicle && !alreadyAssigned.includes(selectedVehicle.id)) {
       chosenVehicles.push(selectedVehicle)
+      const idx = neededDepts.indexOf(selectedVehicle.department || DEFAULT_DEPARTMENT_ID)
+      if (idx > -1) neededDepts.splice(idx, 1)
     }
-    selectionPool.forEach((vehicle) => {
+
+    if (incident.coResponseDepartments?.length > 0) {
+      rankedPool.forEach((vehicle) => {
+        if (chosenVehicles.length >= neededUnits) return
+        if (chosenVehicles.find((item) => item.id === vehicle.id)) return
+        const dept = vehicle.department || DEFAULT_DEPARTMENT_ID
+        const idx = neededDepts.indexOf(dept)
+        if (idx > -1) {
+          chosenVehicles.push(vehicle)
+          neededDepts.splice(idx, 1)
+        }
+      })
+    }
+
+    rankedPool.forEach((vehicle) => {
       if (chosenVehicles.length >= neededUnits) return
       if (!chosenVehicles.find((item) => item.id === vehicle.id)) {
         chosenVehicles.push(vehicle)
@@ -182,17 +385,21 @@ export const useDispatchSystem = ({
     }
 
     pendingDispatchIdsRef.current.add(incidentId)
+
+    // Tech Bonus: Advanced Dispatch AI
+    const routingDuration = unlockedTech.includes('advanced_dispatch') ? 150 : 300 // 1.5s vs 3s roughly (fake visual delay)
+
     const routingStartedAt = Date.now()
     const selectedIds = chosenVehicles.map((vehicle) => vehicle.id)
     vehiclesRef.current = vehiclesRef.current.map((item) =>
       selectedIds.includes(item.id)
         ? {
-            ...item,
-            status: VEHICLE_STATUS.routing,
-            assignedIncidentId: incidentId,
-            routingStartedAt,
-            parked: false,
-          }
+          ...item,
+          status: VEHICLE_STATUS.routing,
+          assignedIncidentId: incidentId,
+          routingStartedAt,
+          parked: false,
+        }
         : item
     )
 
@@ -200,99 +407,124 @@ export const useDispatchSystem = ({
       prev.map((item) =>
         selectedIds.includes(item.id)
           ? {
-              ...item,
-              status: VEHICLE_STATUS.routing,
-              assignedIncidentId: incidentId,
-              routingStartedAt,
-              parked: false,
-            }
+            ...item,
+            status: VEHICLE_STATUS.routing,
+            assignedIncidentId: incidentId,
+            routingStartedAt,
+            parked: false,
+          }
           : item
       )
     )
-
     // Commit assignment immediately so first click has instant feedback.
     const nextAssigned = [...alreadyAssigned, ...selectedIds].filter(
       (value, index, self) => self.indexOf(value) === index
     )
-    incidentsRef.current = incidentsRef.current.map((item) =>
-      item.id === incidentId
-        ? {
+
+    setIncidents((prev) =>
+      prev.map((item) =>
+        item.id === incidentId
+          ? {
             ...item,
             status: INCIDENT_STATUS.responding,
             assignedVehicleId: nextAssigned[0] || null,
             assignedVehicleIds: nextAssigned,
             dispatchedAt: item.dispatchedAt || Date.now(),
           }
-        : item
-    )
-    setIncidents((prev) =>
-      prev.map((item) =>
-        item.id === incidentId
-          ? {
-              ...item,
-              status: INCIDENT_STATUS.responding,
-              assignedVehicleId: nextAssigned[0] || null,
-              assignedVehicleIds: nextAssigned,
-              dispatchedAt: item.dispatchedAt || Date.now(),
-            }
           : item
       )
     )
+    onDispatchEvent?.({
+      incidentId,
+      units: selectedIds.length,
+      source,
+      departmentId: incident.requiredDepartment || DEFAULT_DEPARTMENT_ID,
+      requiredUnitType: incident.requiredUnitType || null,
+      timestamp: Date.now(),
+    })
+
+    // We simulate a network routing delay
+    await new Promise(resolve => setTimeout(resolve, routingDuration))
 
     try {
       const routeResults = await Promise.all(
-        chosenVehicles.map((vehicle) => buildRoute(vehicle.position, incident.position))
+        chosenVehicles.map((vehicle) => {
+          const unitDef = getUnitById(vehicle.unitType)
+          const isDirect = !!unitDef?.isAviation || !!unitDef?.isWater
+          return buildRoute(vehicle.position, incident.position, isDirect)
+        })
       )
-      let bestEta = null
 
-      setVehicles((prev) =>
-        prev.map((item) => {
-          const index = selectedIds.indexOf(item.id)
-          if (index === -1) return item
-          const routeData = routeResults[index]
-          const fatigueMultiplier = clamp(1 - (item.fatigue || 0) / 160, 0.6, 1)
-          const responseBonus = getStationResponseBonus(item.homeStationId)
-          const travelSpeedKph = getTravelSpeedKph({
-            vehicle: item,
-            position: item.position,
-            routeData,
-            progressMeters: 0,
-            responseBonus,
-            fatigueMultiplier,
-            emergency: true,
-            center: DEFAULT_CENTER,
-          })
-          const speedMps = (travelSpeedKph * simSpeedRef.current * 1000) / 3600
-          const etaSeconds = Math.ceil(routeData.totalDistance / speedMps)
-          if (bestEta === null || etaSeconds < bestEta) bestEta = etaSeconds
-          return {
-            ...item,
-            status: VEHICLE_STATUS.enroute,
-            assignedIncidentId: incidentId,
-            routeData,
-            progressMeters: 0,
-            etaSeconds,
-            targetPosition: incident.position,
-            progressRatio: 0,
-            routingStartedAt: null,
-            parked: false,
-            cooldownRemaining: 0,
-            currentSpeedKph: travelSpeedKph,
-            returnDestinationType: null,
-            returnDestinationId: null,
-            returnIncidentType: null,
-          }
-          })
-      )
+      const enroutePatch = (prev) => prev.map((item) => {
+        const index = selectedIds.indexOf(item.id)
+        if (index === -1) return item
+        const routeData = routeResults[index]
+        const fatigueMultiplier = clamp(1 - (item.fatigue || 0) / 160, 0.6, 1)
+        const responseBonus = getStationResponseBonus(item.homeStationId)
+        const travelSpeedKph = getTravelSpeedKph({
+          vehicle: item,
+          position: item.position,
+          routeData,
+          progressMeters: 0,
+          responseBonus,
+          fatigueMultiplier,
+          emergency: true,
+          center: DEFAULT_CENTER,
+          weather,
+        })
+        const speedMps = (travelSpeedKph * simSpeedRef.current * 1000) / 3600
+        const safeEtaSeconds =
+          Number.isFinite(speedMps) && speedMps > 0
+            ? Math.ceil(routeData.totalDistance / speedMps)
+            : Math.max(1, Math.ceil(routeData.durationSeconds || 1))
+        return {
+          ...item,
+          status: VEHICLE_STATUS.enroute,
+          assignedIncidentId: incidentId,
+          routeData,
+          progressMeters: 0,
+          progressRatio: 0,
+          etaSeconds: safeEtaSeconds,
+          targetPosition: incident.position,
+          routingStartedAt: null,
+          parked: false,
+          cooldownRemaining: 0,
+          currentSpeedKph: travelSpeedKph,
+          watchdogLastProgressMeters: 0,
+          watchdogStalledAt: null,
+          watchdogRerouteUsed: false,
+          returnDestinationType: null,
+          returnDestinationId: null,
+          returnIncidentType: null,
+        }
+      })
+
+      setVehicles(enroutePatch)
+      vehiclesRef.current = enroutePatch(vehiclesRef.current)
+
+      selectedIds.forEach(id => {
+        const v = vehiclesRef.current.find(item => item.id === id)
+        if (v) {
+          addRadioLogRef.current?.(
+            `Unit ${v.name} 10-76 Enroute to ${incident.type} at ${incident.address}`,
+            'info',
+            (v.department || DEFAULT_DEPARTMENT_ID) === 'police'
+              ? 'PD'
+              : (v.department || DEFAULT_DEPARTMENT_ID).toUpperCase(),
+            '10-76',
+            v.id
+          )
+        }
+      })
 
       setIncidents((prev) =>
         prev.map((item) =>
           item.id === incidentId
             ? {
-                ...item,
-                status: item.status === INCIDENT_STATUS.open ? INCIDENT_STATUS.responding : item.status,
-                etaSeconds: bestEta ?? item.etaSeconds,
-              }
+              ...item,
+              status: item.status === INCIDENT_STATUS.open ? INCIDENT_STATUS.responding : item.status,
+              etaSeconds: Math.min(...routeResults.map(r => r.durationSeconds)) || item.etaSeconds,
+            }
             : item
         )
       )
@@ -321,7 +553,7 @@ export const useDispatchSystem = ({
       showMessage('No eligible units available.')
       return
     }
-    dispatchVehicle(incidentId, vehicleId)
+    dispatchVehicle(incidentId, vehicleId, 'quick')
   }
 
   return {
@@ -333,6 +565,7 @@ export const useDispatchSystem = ({
     getVehicleIneligibilityReason,
     getEligibleVehicleIds,
     getIncidentRequirementLines,
+    getDispatchRecommendation,
     dispatchVehicle,
     handleQuickDispatch,
   }

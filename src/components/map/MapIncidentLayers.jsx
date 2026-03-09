@@ -6,6 +6,7 @@ const DEPT_RING_COLOR = {
   ems: 'rgb(255, 178, 84)',
   tow: 'rgb(255, 209, 125)',
 }
+const ASSIGNED_RING_COLOR = 'rgb(88, 214, 126)'
 
 const getPriorityOpacityFactor = (priority) => {
   if (priority === 1) return 1
@@ -17,6 +18,7 @@ export const IncidentHalos = ({
   incidents,
   incidentStatus,
   getIncidentPriorityVisual,
+  getIncidentRingMetrics,
   getDepartmentId,
 }) => (
   <>
@@ -25,14 +27,16 @@ export const IncidentHalos = ({
       const departmentId = getDepartmentId(incident.requiredDepartment)
       const priorityFactor = getPriorityOpacityFactor(incident.priority)
       const isOnScene = incident.status === incidentStatus.on_scene
+      const { isUrgent, haloRadius } = getIncidentRingMetrics(incident)
+
       return (
         <CircleMarker
           key={`halo-${incident.id}`}
           center={incident.position}
-          radius={30}
+          radius={haloRadius}
           pathOptions={{
-            className: 'incident-halo',
-            color: DEPT_RING_COLOR[departmentId] || DEPT_RING_COLOR.police,
+            className: `incident-halo ${isUrgent ? 'incident-ring--pulsing' : ''}`,
+            color: isOnScene ? ASSIGNED_RING_COLOR : (DEPT_RING_COLOR[departmentId] || DEPT_RING_COLOR.police),
             weight: 10,
             opacity: (isOnScene ? 0.62 : 0.5) * priorityFactor * dimFactor,
             fillOpacity: 0,
@@ -51,51 +55,51 @@ export const IncidentRings = ({
   getDepartmentId,
 }) => (
   <>
-    {incidents.map((incident) => {
-      const { dimFactor } = getIncidentPriorityVisual(incident, 0.25)
-      const { ringRadius, ringCircumference, arcLength, dashOffset } =
-        getIncidentRingMetrics(incident)
-      return (
-        <CircleMarker
-          key={`ring-outline-${incident.id}`}
-          center={incident.position}
-          radius={ringRadius}
-          pathOptions={{
-            className: 'incident-ring-outline',
-            color: 'rgba(6, 10, 16, 0.96)',
-            weight: 10,
-            opacity: 0.72 * dimFactor,
-            dashArray: `${arcLength} ${ringCircumference}`,
-            dashOffset,
-          }}
-        />
-      )
-    })}
-    {incidents.map((incident) => {
-      const { dimFactor } = getIncidentPriorityVisual(incident, 0.25)
-      const departmentId = getDepartmentId(incident.requiredDepartment)
-      const priorityFactor = getPriorityOpacityFactor(incident.priority)
-      const { ringRadius, ringCircumference, arcLength, dashOffset } =
-        getIncidentRingMetrics(incident)
-      return (
-        <CircleMarker
-          key={`ring-${incident.id}`}
-          center={incident.position}
-          radius={ringRadius}
-          pathOptions={{
-            className: 'incident-ring',
-            color: DEPT_RING_COLOR[departmentId] || DEPT_RING_COLOR.police,
-            weight: 6,
-            opacity:
-              (incident.status === incidentStatus.on_scene ? 1 : 0.94) *
-              priorityFactor *
-              dimFactor,
-            dashArray: `${arcLength} ${ringCircumference}`,
-            dashOffset,
-          }}
-        />
-      )
-    })}
+    {incidents
+      .filter((incident) => incident.status === incidentStatus.open)
+      .map((incident) => {
+        const { dimFactor } = getIncidentPriorityVisual(incident, 0.25)
+        const { ringRadius } = getIncidentRingMetrics(incident)
+        return (
+          <CircleMarker
+            key={`ring-outline-${incident.id}`}
+            center={incident.position}
+            radius={ringRadius}
+            pathOptions={{
+              className: 'incident-ring-outline',
+              color: 'rgba(6, 10, 16, 0.96)',
+              weight: 10,
+              opacity: 0.72 * dimFactor,
+              fillOpacity: 0,
+            }}
+          />
+        )
+      })}
+    {incidents
+      .filter((incident) => incident.status === incidentStatus.open)
+      .map((incident) => {
+        const { dimFactor } = getIncidentPriorityVisual(incident, 0.25)
+        const departmentId = getDepartmentId(incident.requiredDepartment)
+        const priorityFactor = getPriorityOpacityFactor(incident.priority)
+        const { ringRadius, dashArray, dashOffset, isUrgent } =
+          getIncidentRingMetrics(incident)
+        
+        return (
+          <CircleMarker
+            key={`ring-${incident.id}`}
+            center={incident.position}
+            radius={ringRadius}
+            pathOptions={{
+              className: `incident-ring ${isUrgent ? 'incident-ring--urgent' : ''}`,
+              color: DEPT_RING_COLOR[departmentId] || DEPT_RING_COLOR.police,
+              weight: 6,
+              opacity: 0.94 * priorityFactor * dimFactor,
+              dashArray,
+              dashOffset,
+            }}
+          />
+        )
+      })}
   </>
 )
 
@@ -109,6 +113,7 @@ export const IncidentMarkers = ({
   getEligibleVehicleIds,
   canDispatchIncident,
   getIncidentRequirementLines,
+  getDispatchRecommendation,
   getRequiredUnits,
   handleQuickDispatch,
   getSelectedId,
@@ -123,6 +128,9 @@ export const IncidentMarkers = ({
       const eligibleIds = getEligibleVehicleIds(incident)
       const canDispatch = canDispatchIncident(incident)
       const requirementLines = canDispatch ? getIncidentRequirementLines(incident) : []
+      const dispatchRecommendation = canDispatch
+        ? getDispatchRecommendation?.(incident)
+        : null
       const badgeVehicleId =
         incident.onSceneVehicleIds?.[0] ||
         incident.assignedVehicleIds?.[0] ||
@@ -143,7 +151,8 @@ export const IncidentMarkers = ({
             (incident.onSceneVehicleIds?.length || 0) > 0 ||
               (incident.assignedVehicleIds?.length || 0) > 0,
             badgeVehicle?.unitType || null,
-            badgeVehicle?.department || incident.requiredDepartment
+            badgeVehicle?.department || incident.requiredDepartment,
+            incident.coResponseDepartments || []
           )}
           opacity={dimFactor}
         >
@@ -213,6 +222,12 @@ export const IncidentMarkers = ({
                   {requirementLines.map((line) => (
                     <span key={line}>{line}</span>
                   ))}
+                </div>
+              )}
+              {dispatchRecommendation && (
+                <div className="incident-popup__detail">
+                  <span>AI Dispatch</span>
+                  <span>{dispatchRecommendation.summary}</span>
                 </div>
               )}
             </div>

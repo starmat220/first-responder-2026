@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
+import { haversineMeters } from '../game/geo'
 
 export const useIncidentViewModel = ({
   incidents,
+  vehicles,
   incidentFilters,
   primaryDepartmentId,
   defaultDepartmentId,
@@ -36,7 +38,25 @@ export const useIncidentViewModel = ({
         return incident.type === incidentFilters.type
       })
       .sort((a, b) => {
-        if (a.priority !== b.priority) return a.priority - b.priority
+        if (incidentFilters.sort === 'type') {
+          return String(a.type).localeCompare(String(b.type))
+        }
+        if (incidentFilters.sort === 'department') {
+          return String(a.requiredDepartment).localeCompare(String(b.requiredDepartment))
+        }
+
+        if (incidentFilters.sort === 'distance' && vehicles?.length) {
+          const getMinDist = (incident) => {
+            let min = Infinity
+            vehicles.forEach(v => {
+              const d = haversineMeters(v.position, incident.position)
+              if (d < min) min = d
+            })
+            return min
+          }
+          return getMinDist(a) - getMinDist(b)
+        }
+
         const aTime =
           a.status === incidentStatus.on_scene
             ? Number(a.onSceneRemaining) || 0
@@ -45,6 +65,13 @@ export const useIncidentViewModel = ({
           b.status === incidentStatus.on_scene
             ? Number(b.onSceneRemaining) || 0
             : Number(b.timeRemaining) || Number(b.responseTargetSeconds) || 0
+
+        if (incidentFilters.sort === 'time') {
+          return aTime - bTime
+        }
+
+        // Default: Priority then Time
+        if (a.priority !== b.priority) return a.priority - b.priority
         return aTime - bTime
       })
   }, [
@@ -53,8 +80,10 @@ export const useIncidentViewModel = ({
     incidentFilters.department,
     incidentFilters.onlyActiveDepartment,
     incidentFilters.type,
+    incidentFilters.sort,
     primaryDepartmentId,
     incidentStatus.on_scene,
+    vehicles,
   ])
 
   const listIncidents = useMemo(

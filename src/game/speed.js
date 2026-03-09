@@ -1,20 +1,11 @@
 import {
   CITY_CORE_RADIUS_KM,
-  DEFAULT_SPEED_KPH,
-  EMERGENCY_SPEED_BONUS,
   RURAL_RADIUS_KM,
   URBAN_RADIUS_KM,
   ZONE_SPEED_LIMITS_KPH,
 } from './constants'
 import { haversineMeters } from './geo'
-import { getBaseSpeedKph } from './routes'
-
-const normalizeSpeedBand = (speedKph, fallbackLimit) => {
-  if (!Number.isFinite(speedKph)) return fallbackLimit
-  if (speedKph >= 95) return ZONE_SPEED_LIMITS_KPH.highway
-  if (speedKph >= 65) return ZONE_SPEED_LIMITS_KPH.rural
-  return ZONE_SPEED_LIMITS_KPH.city
-}
+import { getWeatherSpeedMultiplier } from './weather'
 
 export const getZoneSpeedLimit = (position, center) => {
   if (!position || !center) return ZONE_SPEED_LIMITS_KPH.rural
@@ -27,25 +18,25 @@ export const getZoneSpeedLimit = (position, center) => {
 
 export const getTravelSpeedKph = ({
   vehicle,
-  position,
-  routeData,
-  progressMeters,
   responseBonus,
   fatigueMultiplier,
   emergency,
-  center,
+  weather,
 }) => {
-  const unitFactor = (vehicle.speedKph || DEFAULT_SPEED_KPH) / DEFAULT_SPEED_KPH
-  const zoneLimit = getZoneSpeedLimit(position, center)
-  const baseSpeed = getBaseSpeedKph({
-    routeData,
-    progressMeters,
-    position,
-    getZoneSpeedLimit: (pos) => getZoneSpeedLimit(pos, center),
-  })
-  const normalizedBase = normalizeSpeedBand(baseSpeed, zoneLimit)
-  let speed = normalizedBase * unitFactor
-  if (emergency) speed *= EMERGENCY_SPEED_BONUS
-  speed *= (1 + (responseBonus || 0)) * (fatigueMultiplier || 1)
-  return Math.max(5, speed)
+  // Hard baseline speeds: 70 for emergencies, 50 for standard
+  const baseline = emergency ? 70 : 50
+  
+  // Calculate unit factor relative to the standard patrol speed (50 km/h)
+  // This allows faster units like Traffic (55 km/h) to scale the baseline up.
+  const unitFactor = (vehicle.speedKph || 50) / 50
+  
+  let speed = baseline * unitFactor
+  
+  // Apply station response bonuses and fatigue penalties
+  // responseBonus is usually 0.05 per level, fatigueMultiplier is now 0.85-1.0
+  speed *= (1 + (responseBonus || 0))
+  speed *= (fatigueMultiplier || 1)
+  speed *= getWeatherSpeedMultiplier(weather, emergency)
+  
+  return Math.max(10, speed)
 }

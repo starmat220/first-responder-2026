@@ -1,0 +1,2746 @@
+:root {
+  /* Core Colors */
+  --color-bg-dark: #0b0f19;
+  --color-panel-bg: rgba(10, 15, 26, 0.65);
+  --color-panel-border: rgba(96, 171, 255, 0.15);
+  --color-text-main: #f0f4f8;
+  --color-text-muted: #8a9fc2;
+
+  /* Department Accents - Enhanced Vibrancy */
+  --color-police: #3b82f6;
+  /* Vibrant Blue */
+  --color-fire: #ef4444;
+  /* Intense Red */
+  --color-ems: #f59e0b;
+  /* Deep Amber */
+  --color-tow: #eab308;
+  /* Bright Yellow */
+  --color-public_works: #94a3b8;
+  /* Slate Blue */
+  --color-urgent: #ef4444;
+  /* Fluorescent Red */
+  --color-success: #10b981;
+  /* Emerald Green */
+
+  /* UI Tokens */
+  --glass-blur: blur(24px);
+  --panel-radius: 16px;
+  --panel-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --border-glow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+
+  /* Typography */
+  --font-display: 'Outfit', sans-serif;
+  --font-ui: 'Inter', -apple-system, sans-serif;
+}
+
+/* Global Reset & Base */
+body {
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-main);
+  font-family: var(--font-ui);
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--urgent-rgb, 239, 68, 68), 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(var(--urgent-rgb, 239, 68, 68), 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--urgent-rgb, 239, 68, 68), 0);
+  }
+}
+
+/* The "Command Panel" container style */
+.cmd-panel {
+  background: var(--color-panel-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--panel-shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.cmd-header {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--color-panel-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cmd-header__title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin: 0;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cmd-content {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+/* Utility: Status Badges */
+.status-badge {
+  font-size: 0.55rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.status-badge--live {
+  border-color: var(--color-urgent);
+  color: var(--color-urgent);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+  animation: pulse-glow 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.status-badge--safe {
+  border-color: var(--color-success);
+  color: var(--color-success);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+}
+
+/* Utility: Buttons */
+.cmd-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-text-main);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: center;
+}
+
+.cmd-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.cmd-btn--primary {
+  background: rgba(96, 171, 255, 0.15);
+  border-color: rgba(96, 171, 255, 0.4);
+  color: #dbeaff;
+}
+
+.cmd-btn--primary:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: var(--color-police);
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.3);
+}
+
+.cmd-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-text-muted);
+}
+
+.cmd-btn--ghost:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* HUD Topbar */
+.hud-top {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  height: 54px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  background: rgba(12, 18, 26, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 12px;
+  z-index: 100;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.hud-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-logo {
+  font-weight: 900;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  color: var(--color-police);
+  border: 2px solid var(--color-police);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.hud-info h1 {
+  font-size: 0.75rem;
+  margin: 0;
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+
+.hud-info .subhead {
+  font-size: 0.55rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.hud-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding-right: 12px;
+  background: transparent;
+  border-top: none;
+  border-left: none;
+  border-bottom: none;
+}
+
+.hud-stat:last-child {
+  border-right: none;
+}
+
+.hud-stat .label {
+  font-size: 0.5rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.1em;
+}
+
+.hud-stat .value {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: #fff;
+  line-height: 1;
+}
+
+.hud-stat--interactive {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 6px 10px 6px 0;
+  margin-right: -2px;
+  transition: background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.hud-stat--interactive:hover {
+  background: rgba(96, 171, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(96, 171, 255, 0.14);
+}
+
+.hud-stat--interactive:focus-visible {
+  outline: 2px solid rgba(96, 171, 255, 0.55);
+  outline-offset: 2px;
+}
+
+.hud-weather {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hud-weather .label {
+  font-size: 0.5rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.1em;
+}
+
+.hud-weather .value {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  color: #d8e8ff;
+  white-space: nowrap;
+}
+
+@media (max-width: 1440px) {
+  .hud-weather .value {
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 1200px) {
+  .hud-weather {
+    display: none;
+  }
+}
+
+.cmd-select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  cursor: pointer;
+}
+
+.hud-popover {
+  position: absolute;
+  top: 64px;
+  right: 0;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  gap: 6px;
+  backdrop-filter: blur(12px);
+}
+
+.hud-build-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+}
+
+.hud-build-inline .cmd-select {
+  min-width: 180px;
+  max-width: 220px;
+}
+
+.cmd-btn--urgent {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.cmd-btn--urgent:hover {
+  background: rgba(239, 68, 68, 0.25);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
+/* Incident Cards */
+.incident-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 3px solid var(--color-police);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1), background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.incident-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(4px);
+  box-shadow: -4px 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.incident-card--compact {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+}
+
+.incident-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.incident-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.incident-card__type {
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: #fff;
+}
+
+.incident-card__timer {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.incident-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.incident-card__actions {
+  display: flex;
+  gap: 5px;
+}
+
+.cmd-select--small {
+  padding: 3px 6px;
+  font-size: 0.6rem;
+  flex: 1;
+}
+
+.incident-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.incident-bar__fill {
+  height: 100%;
+  transition: width 0.5s linear;
+}
+
+/* Welcome Terminal */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 10, 15, 0.95);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.welcome-terminal {
+  width: min(500px, 90vw);
+  background: rgba(12, 18, 26, 0.9);
+  border: 1px solid var(--color-police);
+  border-radius: 16px;
+  box-shadow: 0 0 60px rgba(96, 171, 255, 0.15);
+  overflow: hidden;
+}
+
+.welcome-header {
+  background: rgba(96, 171, 255, 0.1);
+  padding: 16px;
+  border-bottom: 1px solid var(--color-police);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.welcome-header h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+
+.welcome-body {
+  padding: 20px;
+  color: #a0b3cc;
+  font-family: 'Consolas', monospace;
+  line-height: 1.5;
+}
+
+.welcome-text {
+  margin-bottom: 20px;
+  color: var(--color-police);
+  opacity: 0.8;
+}
+
+.welcome-briefing {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.welcome-briefing h3 {
+  margin-top: 0;
+  color: #fff;
+  font-family: var(--font-display);
+  letter-spacing: 0.05em;
+}
+
+.welcome-briefing ul {
+  padding-left: 20px;
+  margin-bottom: 0;
+}
+
+.welcome-footer {
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cmd-btn--large {
+  padding: 12px 24px;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+}
+
+/* Adjust Dock for HUD */
+.dock {
+  top: 96px !important;
+  max-height: calc(100vh - 112px) !important;
+}
+
+/* Secondary Panel Positioning & Styles */
+.test-panel,
+.layers-panel,
+.intel-panel,
+.cases-panel,
+.ledger {
+  top: 96px !important;
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-panel-border) !important;
+  border-radius: var(--panel-radius) !important;
+  box-shadow: var(--panel-shadow) !important;
+}
+
+.test-panel-toggle {
+  top: 96px !important;
+}
+
+.placement-bar--top {
+  top: 96px !important;
+  background: rgba(12, 18, 26, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid var(--color-police) !important;
+  box-shadow: 0 0 30px rgba(96, 171, 255, 0.2) !important;
+}
+
+.layers-toggle {
+  top: 96px !important;
+  right: 16px !important;
+}
+
+/* Unit Status Strip (Bottom Left) */
+.unit-strip {
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-panel-border) !important;
+  border-radius: var(--panel-radius) !important;
+  bottom: 16px !important;
+  left: 16px !important;
+}
+
+.unit-strip__title {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--color-police);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.unit-strip__grid strong {
+  color: #fff !important;
+  font-size: 0.9rem !important;
+}
+
+/* Radio Feed Placement */
+.radio-feed {
+  bottom: 16px !important;
+  right: 16px !important;
+  max-height: 140px !important;
+}
+
+/* General Button & Input Overrides for Theme Consistency */
+.btn,
+.filter-pill {
+  font-family: var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.filter-select,
+.cmd-select,
+.station-input {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+}
+
+/* Alerts & Notifications */
+.alerts {
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-urgent) !important;
+  box-shadow: 0 0 20px rgba(255, 71, 87, 0.1) !important;
+}
+
+.alerts__title {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--color-urgent);
+  margin-bottom: 6px;
+}
+
+.alerts__item {
+  background: rgba(255, 71, 87, 0.05) !important;
+  border: 1px solid rgba(255, 71, 87, 0.1) !important;
+}
+
+/* Debriefs Panel */
+.debriefs {
+  left: 16px !important;
+  bottom: 120px !important;
+  background: var(--color-panel-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--color-panel-border) !important;
+}
+
+.debriefs__card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Fixed Layers Container & Position */
+.layers-container {
+  position: absolute;
+  bottom: 16px;
+  left: 280px;
+  /* Positioned next to the Unit Status Strip */
+  z-index: 31;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+}
+
+.layers-panel {
+  position: relative !important;
+  top: 0 !important;
+  width: 240px;
+  margin-bottom: 8px;
+}
+
+/* Intel Panel Stacking */
+.intel-panel {
+  top: 320px !important;
+  /* Move Intel panel lower so it doesn't overlap Test panel */
+  max-height: calc(100vh - 340px) !important;
+}
+
+/* Financial Ledger & Case stacking */
+.cases-panel {
+  width: min(600px, 95vw) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+.ledger {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+/* Command Hint & Toast Positioning */
+.command-hint,
+.toast {
+  top: 96px !important;
+  z-index: 150 !important;
+  /* Ensure it floats above other panels */
+}
+
+.command-hint {
+  width: min(400px, 90vw) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+.toast {
+  background: rgba(96, 171, 255, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid #fff !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  font-family: var(--font-display) !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Relocate Command Hint & Toast to Bottom Center */
+.command-hint,
+.toast {
+  top: auto !important;
+  bottom: 120px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 500 !important;
+}
+
+.toast {
+  bottom: 180px !important;
+}
+
+/* Ensure panels don't overlap on the right */
+.test-panel {
+  top: 96px !important;
+  right: 16px !important;
+  width: 320px !important;
+}
+
+.intel-panel {
+  top: auto !important;
+  bottom: 16px !important;
+  right: 350px !important;
+  /* Positioned to the left of the Radio Feed */
+  width: 360px !important;
+  max-height: 400px !important;
+}
+
+/* Map Layers (Bottom Left area) */
+.layers-container {
+  left: 320px !important;
+  /* Move it further right to not overlap unit-strip */
+  bottom: 16px !important;
+}
+
+/* UI Fixes: Opacity & Visibility */
+:root {
+  --color-panel-bg: rgba(12, 18, 26, 0.98);
+  /* Much more opaque */
+  --glass-blur: blur(20px);
+}
+
+.cmd-panel {
+  background: var(--color-panel-bg) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Relocate Layers to Top Right (Staggered) */
+.layers-container {
+  top: 96px !important;
+  right: 350px !important;
+  /* To the left of the Test Panel */
+  bottom: auto !important;
+  left: auto !important;
+  position: absolute !important;
+}
+
+.layers-panel {
+  width: 220px !important;
+}
+
+.test-panel {
+  top: 96px !important;
+}
+
+.alerts__item {
+  padding: 8px !important;
+  margin-bottom: 6px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  gap: 10px !important;
+  align-items: center !important;
+}
+
+.alerts__item .title {
+  font-size: 0.75rem !important;
+  margin: 0 !important;
+}
+
+.alerts__item .muted {
+  font-size: 0.65rem !important;
+}
+
+/* Ensure Test Tools is visible */
+.test-panel .cmd-content {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+/* Final Layout Reorganization */
+.radio-feed {
+  bottom: 16px !important;
+  right: 16px !important;
+  width: 320px !important;
+  z-index: 100 !important;
+}
+
+.intel-panel {
+  bottom: 16px !important;
+  right: 350px !important;
+  /* To the left of the Radio Feed */
+  top: auto !important;
+  width: 360px !important;
+  max-height: 450px !important;
+}
+
+.unit-strip {
+  bottom: 80px !important;
+  left: 16px !important;
+  width: 280px !important;
+  z-index: 100 !important;
+}
+
+/* Ensure the Layers tab is visible and not transparent */
+.layers-container .cmd-btn {
+  background: rgba(96, 171, 255, 0.2) !important;
+  border: 1px solid var(--color-police) !important;
+  color: #fff !important;
+}
+
+.cmd-header {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.cmd-content {
+  background: transparent !important;
+}
+
+.cmd-panel {
+  border: 2px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+.cmd-panel {
+  background-color: #0c121a !important;
+  /* Solid dark background */
+  opacity: 1 !important;
+}
+
+.layers-container {
+  z-index: 500 !important;
+}
+
+.layers-container .cmd-btn {
+  background: #1a2530 !important;
+  border: 1px solid #60abff !important;
+  opacity: 1 !important;
+  color: #fff !important;
+}
+
+/* Standardized Toggle Buttons */
+.test-panel-toggle,
+.layers-container .cmd-btn {
+  background: #1a2530 !important;
+  border: 1px solid var(--color-police) !important;
+  opacity: 1 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  font-weight: 700 !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+}
+
+.test-panel-toggle:hover,
+.layers-container .cmd-btn:hover {
+  background: #243440 !important;
+  border-color: #fff !important;
+}
+
+/* Final UI Interaction Refinement */
+.test-panel-toggle,
+.layers-container .cmd-btn {
+  z-index: 1000 !important;
+}
+
+/* Rotate rings in CSS for simpler math: 12 o'clock start */
+.incident-ring,
+.incident-ring-outline {
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* High-Tech Avatar Styling */
+.avatar {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--color-police);
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(96, 171, 255, 0.3);
+  background: #000;
+}
+
+.avatar--dispatcher {
+  width: 36px;
+  height: 36px;
+  border-color: var(--color-success);
+}
+
+.avatar--citizen {
+  width: 44px;
+  height: 44px;
+  border-color: var(--color-text-muted);
+}
+
+.avatar--officer {
+  width: 24px;
+  height: 24px;
+  border-width: 1px;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: contrast(1.1) brightness(0.9) saturate(0.8) hue-rotate(-10deg);
+}
+
+/* Scanline Effect Overlay */
+.avatar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.15) 0px,
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px);
+  pointer-events: none;
+}
+
+.hud-logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.radio-entry__avatar {
+  margin-top: 2px;
+}
+
+.welcome-advisor {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.welcome-advisor .avatar {
+  width: 100px;
+  height: 100px;
+  border-width: 3px;
+}
+
+/* Incident Card Journey Visualization */
+.incident-bar--journey {
+  background: rgba(255, 255, 255, 0.05) !important;
+  position: relative !important;
+  overflow: visible !important;
+  height: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.incident-unit-marker {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 6px !important;
+  background: var(--unit-color, var(--color-police)) !important;
+  border: 2px solid #fff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.65rem !important;
+  font-weight: 900 !important;
+  color: #fff !important;
+  box-shadow: 0 0 15px var(--unit-color, var(--color-police));
+  z-index: 10 !important;
+  transition: left 0.1s linear;
+}
+
+.incident-unit-marker::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #fff;
+}
+
+.incident-card--responding .incident-card__type {
+  color: var(--color-police) !important;
+  text-shadow: 0 0 8px rgba(96, 171, 255, 0.4);
+}
+
+/* Notification (Toast) Refinement */
+.toast {
+  top: 96px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: rgba(12, 18, 26, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 2px solid var(--color-police) !important;
+  color: #fff !important;
+  padding: 12px 24px !important;
+  border-radius: 12px !important;
+  font-family: var(--font-display) !important;
+  font-size: 1rem !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  box-shadow: 0 0 30px rgba(96, 171, 255, 0.2) !important;
+  z-index: 2000 !important;
+}
+
+.radio-entry__time {
+  color: rgba(130, 161, 198, 0.5) !important;
+  min-width: 40px !important;
+  font-size: 0.7rem !important;
+}
+
+.radio-entry__channel {
+  color: #8da4bf !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 0.7rem !important;
+}
+
+/* Relocate Recommended Action below HUD */
+.command-hint {
+  top: 160px !important;
+  bottom: auto !important;
+  z-index: 400 !important;
+}
+
+/* Increased Radio Feed Height */
+.radio-feed {
+  max-height: 280px !important;
+  /* Made significantly taller for larger font */
+}
+
+/* Green Pulse for On-Scene Units */
+@keyframes green-pulse-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+}
+
+.marker--vehicle-scene::after {
+  border-color: var(--color-success) !important;
+  animation: siren-a 1s infinite alternate, green-pulse-ring 2s infinite ease-out !important;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* Windowing System Styles */
+.window-wrapper {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  min-width: 200px;
+  min-height: 40px;
+  pointer-events: auto !important;
+}
+
+.window-header {
+  cursor: move;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.window-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.window-control-btn {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: #000;
+  font-weight: bold;
+}
+
+.window-control-btn--minimize {
+  background: #f1c40f;
+}
+
+.window-control-btn--close {
+  background: #e74c3c;
+}
+
+.window-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.window-content--minimized {
+  display: none !important;
+}
+
+.window-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.2) 50%);
+  border-radius: 0 0 var(--panel-radius) 0;
+}
+
+/* Ensure cmd-panel works within window-wrapper */
+.window-wrapper .cmd-panel {
+  height: 100%;
+  width: 100%;
+  margin: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  position: relative !important;
+}
+
+/* Final Window System Refinements */
+.radio-feed-content,
+.panel-content-only {
+  background: transparent !important;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cmd-panel {
+  pointer-events: auto !important;
+}
+
+/* Removing resizing, keeping dragging & minimize with themed icons */
+.window-resize-handle {
+  display: none !important;
+}
+
+.window-control-btn {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 4px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.window-control-btn:hover {
+  background: var(--color-police) !important;
+  border-color: #fff !important;
+}
+
+.window-header {
+  user-select: none !important;
+}
+
+/* Removing big dark bar at bottom */
+.app {
+  display: block !important;
+  height: 100vh !important;
+  width: 100vw !important;
+  overflow: hidden !important;
+  background: var(--color-bg-dark) !important;
+}
+
+.map-shell {
+  height: 100vh !important;
+  width: 100vw !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* Fix Sim Speed logic visuals */
+.sim-speed-active {
+  color: var(--color-success) !important;
+  text-shadow: 0 0 10px var(--color-success);
+}
+
+.app {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+.map-shell {
+  flex: 1 !important;
+  position: relative !important;
+  top: 0 !important;
+  height: auto !important;
+}
+
+.hud-top {
+  margin-top: 0 !important;
+}
+
+.test-panel-toggle {
+  position: absolute !important;
+  right: 16px !important;
+  top: 96px !important;
+  z-index: 100 !important;
+}
+
+/* Final UI Interaction Refinement: Force High Opacity and Stacking */
+.cmd-panel,
+.test-panel-toggle,
+.layers-container .cmd-btn {
+  background-color: #0c121a !important;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent) !important;
+  opacity: 1 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Relocate Layers to top-right area but shifted left to avoid overlap */
+.layers-container {
+  top: 96px !important;
+  right: 360px !important;
+  /* Test panel is at 16px + 320px width = 336px */
+  bottom: auto !important;
+  left: auto !important;
+  z-index: 1100 !important;
+}
+
+.test-panel-toggle {
+  right: 16px !important;
+  top: 96px !important;
+  z-index: 1100 !important;
+}
+
+/* Contextual Stacking: If Test Panel is open, Alerts move lower */
+/* (Since we can't easily detect React state in pure CSS, we use a safer default offset) */
+.alerts-context {
+  transform: translateY(0);
+  transition: transform 0.3s ease;
+}
+
+/* Manual override for when test tools are likely open */
+.intel-panel {
+  bottom: 16px !important;
+  right: 350px !important;
+  top: auto !important;
+  z-index: 1000 !important;
+}
+
+/* Fixing on-scene pulse to green for all units */
+@keyframes green-pulse-ring {
+  0% {
+    stroke-width: 10;
+    opacity: 0.8;
+  }
+
+  50% {
+    stroke-width: 20;
+    opacity: 0.2;
+  }
+
+  100% {
+    stroke-width: 10;
+    opacity: 0.8;
+  }
+}
+
+.marker--vehicle-scene::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 3px solid var(--color-success) !important;
+  box-shadow: 0 0 15px var(--color-success) !important;
+  animation: green-pulse-ring 1.5s infinite ease-in-out !important;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Standardized Toggle Buttons - Solid & Visible */
+.test-panel-toggle,
+.layers-container .cmd-btn {
+  background-color: #0c121a !important;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent) !important;
+  border: 2px solid var(--color-police) !important;
+  opacity: 1 !important;
+  color: #fff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+  z-index: 1100 !important;
+}
+
+/* Fix Incident Ticker Dash Math */
+.incident-ring {
+  transition: stroke-dasharray 0.3s ease, stroke-dashoffset 0.3s ease;
+}
+
+/* === FINAL POLISH & VISUAL JUICE === */
+
+/* 1. Global Typography Bump */
+:root {
+  --font-size-base: 12px;
+  --font-size-sm: 10px;
+  --font-size-xs: 9px;
+}
+
+.cmd-content,
+.window-content {
+  font-size: var(--font-size-base);
+}
+
+.muted {
+  color: #a0b3cc !important;
+  /* Higher contrast blue-grey */
+}
+
+/* 2. Tactile Button Feel */
+.cmd-btn {
+  transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.cmd-btn:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Glowing hover effect */
+.cmd-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.4s ease;
+}
+
+.cmd-btn:hover::after {
+  transform: translateX(100%);
+}
+
+/* 3. Enhanced Radio Live Indicator */
+.radio-feed__live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-urgent);
+  text-shadow: 0 0 8px rgba(255, 71, 87, 0.6);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+}
+
+.radio-feed__live-indicator::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: var(--color-urgent);
+  border-radius: 50%;
+  animation: pulse-live 1.2s ease-in-out infinite;
+}
+
+/* 4. Scrollbar Polish */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(96, 171, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(96, 171, 255, 0.5);
+}
+
+/* 5. Recommended Action Position Tweak */
+.command-hint {
+  top: 130px !important;
+  /* Slight backdrop boost for readability */
+  background: linear-gradient(180deg, rgba(12, 18, 26, 0.95), rgba(12, 18, 26, 0.98)) !important;
+  border: 1px solid var(--color-police) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 6. Incident List Spacing */
+.incident-card {
+  margin-bottom: 2px;
+}
+
+/* 7. Fleet Status Clarity */
+.pill--cooldown {
+  border-color: var(--color-tow) !important;
+  color: #ffe2b7 !important;
+  animation: pulse-slow 2s infinite;
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Enhanced Live Indicator Animation */
+@keyframes pulse-live {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(255, 71, 87, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+  }
+}
+
+.radio-feed__live-indicator::before {
+  animation: pulse-live 2s infinite;
+}
+
+/* Regional Intelligence Ticker */
+.regional-ticker {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: rgba(12, 18, 26, 0.95);
+  border-top: 1px solid var(--color-panel-border);
+  display: flex;
+  align-items: center;
+  z-index: 100;
+  overflow: hidden;
+  font-family: 'Consolas', monospace;
+}
+
+.regional-ticker__label {
+  background: var(--color-urgent);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 900;
+  padding: 0 12px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0.1em;
+  z-index: 2;
+  box-shadow: 4px 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.regional-ticker__track {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.regional-ticker__content {
+  display: inline-block;
+  padding-left: 100%;
+  animation: ticker-scroll 60s linear infinite;
+  font-size: 0.75rem;
+  color: var(--color-police);
+  opacity: 0.8;
+}
+
+/* Taskbar / Dock */
+.taskbar {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 48px;
+  padding: 0 16px;
+  background: rgba(12, 18, 26, 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 500;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.taskbar-item {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.taskbar-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.taskbar-item--active {
+  background: rgba(96, 171, 255, 0.15);
+  color: var(--color-police);
+  border-color: var(--color-police);
+  box-shadow: 0 0 12px rgba(96, 171, 255, 0.2);
+}
+
+.taskbar-item--urgent.taskbar-item--active {
+  color: var(--color-urgent);
+  border-color: var(--color-urgent);
+  box-shadow: 0 0 12px rgba(255, 71, 87, 0.2);
+}
+
+.taskbar-item__tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: #000;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.taskbar-item:hover .taskbar-item__tooltip {
+  opacity: 1;
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.app.app--large-text {
+  font-size: 17px;
+}
+
+.app.app--color-assist {
+  --color-police: #38bdf8;
+  --color-fire: #f97316;
+  --color-ems: #fbbf24;
+  --color-tow: #34d399;
+}
+
+.app.app--high-contrast {
+  filter: contrast(1.15) saturate(1.05);
+}
+
+.app.app--high-contrast .hud-top,
+.app.app--high-contrast .window,
+.app.app--high-contrast .panel,
+.app.app--high-contrast .modal__card {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.app.app--high-contrast .muted {
+  color: rgba(238, 246, 255, 0.86) !important;
+}
+
+.app.app--reduced-motion *,
+.app.app--reduced-motion *::before,
+.app.app--reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ========================================================
+   BEGINNER ONBOARDING & WELCOME STYLES
+   ======================================================== */
+
+/* Wider welcome modal for multi-step tutorial */
+.welcome-terminal--wide {
+  width: min(620px, 94vw) !important;
+}
+
+/* Welcome feature cards (intro step) */
+.welcome-feature-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.welcome-feature-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(96, 171, 255, 0.25);
+}
+
+/* Welcome input fields */
+.welcome-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  padding: 12px 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.welcome-input:focus {
+  border-color: var(--color-police);
+  box-shadow: 0 0 0 2px rgba(96, 171, 255, 0.2);
+}
+
+.welcome-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+  font-style: italic;
+}
+
+/* ========================================================
+   EMPTY STATES — for panels with no content yet
+   ======================================================== */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 20px;
+  gap: 12px;
+  color: var(--color-text-muted);
+}
+
+.empty-state__icon {
+  font-size: 2rem;
+  opacity: 0.5;
+  margin-bottom: 4px;
+}
+
+.empty-state__title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.03em;
+}
+
+.empty-state__body {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+  max-width: 260px;
+}
+
+.empty-state__action {
+  background: rgba(96, 171, 255, 0.12);
+  border: 1px solid rgba(96, 171, 255, 0.35);
+  border-radius: 8px;
+  color: var(--color-police);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 8px 18px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.empty-state__action:hover {
+  background: rgba(96, 171, 255, 0.22);
+  box-shadow: 0 0 12px rgba(96, 171, 255, 0.2);
+}
+
+/* ========================================================
+   BEGINNER PROGRESS BANNER
+   Banner shown at top of station panel when player is new
+   ======================================================== */
+
+.beginner-banner {
+  background: linear-gradient(135deg, rgba(96, 171, 255, 0.08), rgba(16, 185, 129, 0.06));
+  border: 1px solid rgba(96, 171, 255, 0.2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.beginner-banner__icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.beginner-banner__body p {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #c8d8ea;
+}
+
+.beginner-banner__body strong {
+  color: #fff;
+}
+
+/* ========================================================
+   PROGRESS MILESTONE INDICATORS
+   ======================================================== */
+
+.milestone-track {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 0 4px;
+  overflow-x: auto;
+}
+
+.milestone-pip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.milestone-pip__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.milestone-pip--done .milestone-pip__dot {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+}
+
+.milestone-pip--next .milestone-pip__dot {
+  background: rgba(96, 171, 255, 0.3);
+  border-color: var(--color-police);
+  animation: pulse-glow 2s infinite;
+}
+
+.milestone-pip__label {
+  font-size: 0.48rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  max-width: 44px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.milestone-pip--done .milestone-pip__label {
+  color: var(--color-success);
+}
+
+.milestone-pip--next .milestone-pip__label {
+  color: var(--color-police);
+}
+
+.milestone-connector {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  min-width: 12px;
+  max-width: 30px;
+}
+
+.milestone-connector--done {
+  background: var(--color-success);
+  opacity: 0.5;
+}
+
+/* ========================================================
+   DISPATCH QUICK-ACTION BADGE
+   Visible red dot on taskbar when incident needs dispatch
+   ======================================================== */
+
+.taskbar-item__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-urgent);
+  border: 2px solid var(--color-bg-dark);
+  font-size: 0.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 900;
+  animation: pulse-glow 1.5s infinite;
+}
+
+/* ========================================================
+   INCIDENT CARD IMPROVEMENTS
+   ======================================================== */
+
+/* Department color bars are clearer */
+.incident-card {
+  border-left-width: 4px !important;
+}
+
+/* Response timer urgency colors */
+.incident-card__timer--urgent {
+  color: var(--color-urgent) !important;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.incident-card__timer--warning {
+  color: var(--color-ems) !important;
+}
+
+/* Clearer "dispatch" action button */
+.dispatch-btn {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.08));
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-radius: 6px;
+  color: var(--color-success);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.dispatch-btn:hover {
+  background: rgba(16, 185, 129, 0.25);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+  transform: translateY(-1px);
+}
+
+.dispatch-btn:active {
+  transform: translateY(0);
+}
+
+/* ========================================================
+   CONTEXTUAL TOOLTIPS (hover helper text)
+   ======================================================== */
+
+.ctx-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ctx-tip__trigger {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  font-weight: 700;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.ctx-tip__popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 14, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: 220px;
+  font-size: 0.65rem;
+  color: #c8d8ea;
+  line-height: 1.5;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2000;
+  white-space: normal;
+}
+
+.ctx-tip:hover .ctx-tip__popup,
+.ctx-tip:focus-within .ctx-tip__popup {
+  opacity: 1;
+}
+
+/* ========================================================
+   MAP OVERLAY: "Place Your HQ" prompt
+   ======================================================== */
+
+.map-place-prompt {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -60%);
+  text-align: center;
+  pointer-events: none;
+  z-index: 50;
+  animation: float-gentle 3s ease-in-out infinite;
+}
+
+.map-place-prompt__bubble {
+  background: rgba(10, 14, 20, 0.95);
+  border: 2px solid var(--color-police);
+  border-radius: 14px;
+  padding: 18px 28px;
+  box-shadow: 0 0 40px rgba(96, 171, 255, 0.25);
+  display: inline-block;
+}
+
+.map-place-prompt__title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: #fff;
+  letter-spacing: 0.06em;
+}
+
+.map-place-prompt__body {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+@keyframes float-gentle {
+  0%, 100% { transform: translate(-50%, -60%); }
+  50% { transform: translate(-50%, -63%); }
+}
+
+/* ========================================================
+   XP / LEVEL PROGRESS BAR
+   ======================================================== */
+
+.xp-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.xp-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-police), #38d9a9);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ========================================================
+   DEBRIEF CARDS (after-action summaries)
+   ======================================================== */
+
+.debriefs__card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.debriefs__reward {
+  color: var(--color-success);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.debriefs__trust.up {
+  color: var(--color-success);
+}
+
+.debriefs__trust {
+  color: var(--color-urgent);
+  font-size: 0.68rem;
+}
+
+.debriefs__evidence {
+  color: var(--color-ems);
+  font-size: 0.68rem;
+}
+
+.debriefs__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* ========================================================
+   STATION OVERVIEW IMPROVEMENTS
+   ======================================================== */
+
+.station-stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.7rem;
+}
+
+.station-stat-item:last-child {
+  border-bottom: none;
+}
+
+.station-stat-item__label {
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.station-stat-item__value {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ========================================================
+   MODULE CARDS (used in station panel)
+   ======================================================== */
+
+.module-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.module-card__header {
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.module-card__title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.module-card__body {
+  padding: 12px 14px;
+}
+
+/* ========================================================
+   MENU SHELL (Fleet, Incidents panels)
+   ======================================================== */
+
+.menu-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.menu-shell__header {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.menu-shell__title {
+  margin: 0 0 2px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.menu-shell__hint {
+  margin: 0;
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.menu-shell__metrics {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.menu-stat-badge {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  letter-spacing: 0.04em;
+}
+
+.menu-shell__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.menu-empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  padding: 32px 16px;
+  font-style: italic;
+}
+
+.menu-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.unit-level {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: rgba(96, 171, 255, 0.15);
+  border: 1px solid rgba(96, 171, 255, 0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--color-police);
+  vertical-align: middle;
+}
+
+/* ========================================================
+   SETTINGS PANEL ROWS
+   ======================================================== */
+
+.settings-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  gap: 12px;
+}
+
+.settings-row span strong {
+  display: block;
+  font-size: 0.75rem;
+  color: #fff;
+  margin-bottom: 2px;
+}
+
+.settings-row span small {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--color-text-muted);
+}
+
+.settings-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-police);
+  flex-shrink: 0;
+}
+
+.settings-row--actions {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.settings-row--actions .cmd-btn {
+  align-self: flex-end;
+}
+
+.settings-note {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0;
+  text-align: center;
+}
+
+/* ========================================================
+   TELEMETRY / INTEL PANEL
+   ======================================================== */
+
+.telemetry-grid {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.telemetry-row {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.telemetry-row__title {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.telemetry-row--goal-ready {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.telemetry-row--goal-highlight {
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+@keyframes goal-dismiss {
+  to { opacity: 0; transform: translateX(20px); height: 0; padding: 0; margin: 0; overflow: hidden; }
+}
+
+.telemetry-row--goal-dismiss {
+  animation: goal-dismiss 0.4s ease forwards;
+}
+
+.telemetry-goal__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+/* ========================================================
+   COMMAND HINT PANEL (Recommended Action)
+   Final canonical positioning
+   ======================================================== */
+
+.command-hint {
+  position: absolute !important;
+  top: 130px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: min(400px, 90vw) !important;
+  z-index: 400 !important;
+}
+
+/* ========================================================
+   TOAST NOTIFICATION
+   Final canonical positioning
+   ======================================================== */
+
+.toast {
+  position: absolute !important;
+  top: 96px !important;
+  bottom: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2000 !important;
+  background: rgba(12, 18, 26, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 2px solid var(--color-police) !important;
+  color: #fff !important;
+  padding: 12px 24px !important;
+  border-radius: 12px !important;
+  font-family: var(--font-display) !important;
+  font-size: 1rem !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  box-shadow: 0 0 30px rgba(96, 171, 255, 0.2) !important;
+}
+
+/* ========================================================
+   MODAL
+   ======================================================== */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.modal__card {
+  background: rgba(12, 18, 26, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 0;
+  width: min(480px, 92vw);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+}
+
+.modal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px 10px;
+}
+
+/* Station card (used in follow-up modal) */
+.station-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 12px 4px;
+}
+
+.station-card__title {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.station-action-row {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  justify-content: flex-end;
+}
+
+/* textarea styling */
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'Consolas', 'Fira Code', monospace;
+  font-size: 0.65rem;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: rgba(96, 171, 255, 0.4);
+}
+
+/* ========================================================
+   STATION BADGE (Leaflet tooltip)
+   ======================================================== */
+
+.station-badge {
+  background: rgba(10, 14, 20, 0.92) !important;
+  border: 1px solid rgba(96, 171, 255, 0.3) !important;
+  border-radius: 6px !important;
+  padding: 3px 7px !important;
+  color: #fff !important;
+  font-size: 0.58rem !important;
+  font-family: var(--font-ui) !important;
+  white-space: nowrap !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+.station-badge__name {
+  font-weight: 700;
+  color: #fff;
+}
+
+.station-badge__meta {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.52rem;
+}
+
+.prison-badge {
+  border-color: rgba(240, 170, 73, 0.4) !important;
+}
+
+.special-label {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #fca5a5 !important;
+}
+
+/* ========================================================
+   PRIORITY DISPLAY
+   ======================================================== */
+
+.priority-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+.priority-tag--p1 {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.priority-tag--p2 {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.priority-tag--p3 {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
+}
+
+/* ========================================================
+   MAP OVERLAY (no stations placed yet)
+   ======================================================== */
+
+.map-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.map-overlay p {
+  background: rgba(10, 14, 20, 0.95);
+  border: 2px dashed rgba(96, 171, 255, 0.4);
+  border-radius: 12px;
+  padding: 20px 32px;
+  color: var(--color-police);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(96, 171, 255, 0.15);
+  animation: float-gentle 3s ease-in-out infinite;
+}
+
+/* ========================================================
+   FLEET VEHICLE AVATAR
+   ======================================================== */
+
+.fleet-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 900;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ========================================================
+   PLACEMENT BAR
+   ======================================================== */
+
+.placement-bar--top {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* ========================================================
+   INLINE BUILD MENU
+   ======================================================== */
+
+.hud-build-inline select.cmd-select {
+  min-width: 200px;
+}
+
+/* ========================================================
+   INCIDENT POPUP (Leaflet)
+   ======================================================== */
+
+.incident-popup {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: #fff;
+  min-width: 180px;
+}
+
+.incident-popup__meta {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 4px 0;
+  font-size: 0.62rem;
+}
+
+.incident-popup__detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.62rem;
+}
+
+.popup-controls {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+/* ========================================================
+   ALERTS PANEL (command hints)
+   ======================================================== */
+
+.alerts {
+  position: absolute;
+  top: 96px;
+  left: 16px;
+  width: 280px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alerts__title {
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.alerts__item {
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.alerts__item .title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 2px;
+}
+
+.alerts__item .muted {
+  font-size: 0.62rem;
+}
+
+/* ========================================================
+   PANEL ANIMATION
+   ======================================================== */
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ========================================================
+   MISC UTILITY
+   ======================================================== */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cmd-btn--small {
+  padding: 3px 8px !important;
+  font-size: 0.6rem !important;
+}
+
+/* Filter pill for incidents */
+.filter-pill {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.6rem;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.filter-pill:hover,
+.filter-pill--active {
+  background: rgba(96, 171, 255, 0.12);
+  border-color: rgba(96, 171, 255, 0.35);
+  color: var(--color-police);
+}
+
+/* Test panel meta */
+.test-panel__meta {
+  padding: 8px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.test-panel__meta label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  flex: 1;
+}
+
+/* Marker department badge */
+.marker__dept {
+  display: inline-block;
+  font-size: 0.5rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+.marker__dept--police { background: rgba(59, 130, 246, 0.25); color: var(--color-police); }
+.marker__dept--fire   { background: rgba(239, 68, 68, 0.25); color: var(--color-fire); }
+.marker__dept--ems    { background: rgba(245, 158, 11, 0.25); color: var(--color-ems); }
+.marker__dept--tow    { background: rgba(234, 179, 8, 0.25); color: var(--color-tow); }
+.marker__dept--public_works { background: rgba(148, 163, 184, 0.2); color: var(--color-public_works); }
