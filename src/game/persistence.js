@@ -3,6 +3,7 @@ import {
   PERSONNEL_CAPACITY_START, 
   PERSONNEL_HIRE_COUNT,
   JAIL_START_CAPACITY,
+  PATIENT_LOG_LIMIT,
   STATION_OPERATION_RADIUS_KM,
   STATION_OPERATION_RADIUS_BONUS_KM,
   GARAGE_START_CAPACITY,
@@ -17,7 +18,14 @@ import {
 import { sanitizePosition } from './geo'
 import { getUnitById } from './catalog'
 import { getCrewRequirement } from './crew'
-import { STATION_TYPES, DEPARTMENTS, DEFAULT_DEPARTMENT_ID } from './departments'
+import { generateCrewMember } from './crewMember'
+import {
+  STATION_TYPES,
+  DEPARTMENTS,
+  DEFAULT_DEPARTMENT_ID,
+  getImpoundCapacityForStationType,
+  getPatientCapacityForStationType,
+} from './departments'
 import { getPriorityConfig } from '../config/priority'
 import { clamp } from './utils'
 import { WEATHER_CONDITIONS } from './weather'
@@ -66,16 +74,57 @@ export const normalizeStation = (stationItem, index) => {
       .map((member) => normalizeCrewMember(member, stationItem.department))
       .filter(Boolean)
     : []
+  const normalizedAssigned = clamp(Math.max(assigned, crewMembers.length), 0, capacity)
+  const normalizedCrewMembers = crewMembers.slice(0, normalizedAssigned)
+  while (normalizedCrewMembers.length < normalizedAssigned) {
+    normalizedCrewMembers.push(generateCrewMember(stationItem.department || DEFAULT_DEPARTMENT_ID))
+  }
   
   // Infer type if missing
   let stationType = stationItem.stationType || STATION_TYPES.police_station.id
   let department = stationItem.department || DEFAULT_DEPARTMENT_ID
+  const stationDefinition = STATION_TYPES[stationType] || {}
+  const activePatients = Array.isArray(stationItem.activePatients)
+    ? stationItem.activePatients
+      .filter((patient) => patient && typeof patient === 'object')
+      .map((patient, patientIndex) => ({
+        id: patient.id || `patient-${id}-${patientIndex}`,
+        type: patient.type || 'Medical intake',
+        admittedAt: Number(patient.admittedAt) || Date.now(),
+        releaseAt: Number(patient.releaseAt) || Date.now(),
+        source: patient.source || 'ems_transport',
+      }))
+    : []
+  const fallbackPatientCapacity = getPatientCapacityForStationType(stationType)
+  const patientCapacity = Math.max(0, Number(stationItem.patientCapacity) || fallbackPatientCapacity)
+  const patientCount =
+    patientCapacity > 0
+      ? Math.min(patientCapacity, Math.max(activePatients.length, Number(stationItem.patientCount) || 0))
+      : 0
+  const fallbackImpoundCapacity = getImpoundCapacityForStationType(stationType)
+  const impoundCapacity = Math.max(0, Number(stationItem.impoundCapacity) || fallbackImpoundCapacity)
+  const impoundCount =
+    impoundCapacity > 0
+      ? Math.min(impoundCapacity, Math.max(0, Number(stationItem.impoundCount) || 0))
+      : 0
+  const activeImpounds = Array.isArray(stationItem.activeImpounds)
+    ? stationItem.activeImpounds
+      .filter((entry) => entry && typeof entry === 'object')
+      .map((entry, entryIndex) => ({
+        id: entry.id || `impound-${id}-${entryIndex}`,
+        type: entry.type || 'Recovered vehicle',
+        impoundedAt: Number(entry.impoundedAt) || Date.now(),
+        source: entry.source || 'tow_recovery',
+      }))
+    : []
   
   return {
     id,
     name: stationItem.name || `Station ${id}`,
     stationType,
     department,
+    size: stationItem.size || stationDefinition.size,
+    category: stationItem.category || stationDefinition.category || 'station',
     specialization:
       typeof stationItem.specialization === 'string' && stationItem.specialization.trim()
         ? stationItem.specialization.trim()
@@ -89,12 +138,26 @@ export const normalizeStation = (stationItem, index) => {
     shiftPreset: stationItem.shiftPreset || '24_7',
     minOnDutyDay: Number(stationItem.minOnDutyDay) || 1,
     minOnDutyNight: Number(stationItem.minOnDutyNight) || 1,
-    personnelAssigned: clamp(assigned, 0, capacity),
+    personnelAssigned: normalizedAssigned,
     personnelCapacity: capacity,
-    crewMembers,
+    crewMembers: normalizedCrewMembers,
     jailCapacity: Number(stationItem.jailCapacity) || JAIL_START_CAPACITY,
     jailCount: Math.max(0, Number(stationItem.jailCount) || 0),
     detentionLog: Array.isArray(stationItem.detentionLog) ? stationItem.detentionLog : [],
+    patientCapacity,
+    patientCount,
+    patientLog: Array.isArray(stationItem.patientLog)
+      ? stationItem.patientLog.slice(-PATIENT_LOG_LIMIT)
+      : [],
+    activePatients: patientCapacity > 0 ? activePatients.slice(-patientCapacity) : [],
+    impoundCapacity,
+    impoundCount: impoundCapacity > 0
+      ? Math.min(impoundCapacity, Math.max(activeImpounds.length, impoundCount))
+      : 0,
+    activeImpounds: impoundCapacity > 0 ? activeImpounds.slice(-impoundCapacity) : [],
+    impoundLog: Array.isArray(stationItem.impoundLog)
+      ? stationItem.impoundLog.slice(-PATIENT_LOG_LIMIT)
+      : [],
   }
 }
 

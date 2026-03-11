@@ -2,11 +2,11 @@ import React from 'react'
 import '../Theme.css'
 
 const DEPARTMENT_META = {
-  police: { label: 'Police', short: 'PD', color: 'var(--color-police)' },
-  fire: { label: 'Fire', short: 'FD', color: 'var(--color-fire)' },
-  ems: { label: 'EMS', short: 'EMS', color: 'var(--color-ems)' },
-  tow: { label: 'Tow', short: 'TOW', color: 'var(--color-tow)' },
-  public_works: { label: 'Public Works', short: 'PW', color: 'var(--color-public_works)' },
+  police: { label: 'Police', short: 'PD', color: 'var(--color-police)', rgb: '96, 171, 255' },
+  fire: { label: 'Fire', short: 'FD', color: 'var(--color-fire)', rgb: '255, 122, 101' },
+  ems: { label: 'EMS', short: 'EMS', color: 'var(--color-ems)', rgb: '255, 214, 74' },
+  tow: { label: 'Tow', short: 'TOW', color: 'var(--color-tow)', rgb: '230, 184, 91' },
+  public_works: { label: 'Public Works', short: 'PW', color: 'var(--color-public_works)', rgb: '160, 174, 192' },
 }
 
 const PRIORITY_LABELS = {
@@ -51,8 +51,14 @@ const IncidentCard = ({
   const isOnScene = incident.status === 'on_scene'
   const isResponding = incident.status === 'responding'
   const isMajor = !!incident.isMajor
-  const deptColor = getIncidentColor(incident.requiredDepartment)
-  const activeColor = isOnScene ? 'var(--color-success)' : isMajor ? 'var(--color-urgent)' : deptColor
+  const deptMeta = DEPARTMENT_META[incident.requiredDepartment] || DEPARTMENT_META.police
+  const deptColor = deptMeta.color
+  const progressColor = incident.status === 'open' ? 'var(--color-success)' : deptColor
+  const activeColor = incident.status === 'open'
+    ? 'var(--color-success)'
+    : isMajor
+      ? 'var(--color-urgent)'
+      : deptColor
   const canDispatch = eligibleIds && eligibleIds.size > 0
   const priority = incident.priority || 2
   const prioMeta = PRIORITY_LABELS[priority] || PRIORITY_LABELS[2]
@@ -83,18 +89,27 @@ const IncidentCard = ({
       : ((incident.timeRemaining || 0) / (incident.responseTargetSeconds || 1))
 
   const unitAssignedCount = incident.assignedVehicleIds?.length || 0
+  const unitOnSceneCount = incident.onSceneVehicleIds?.length || 0
   const unitRequired = incident.requiredUnits || 1
-  const needsMore = isOnScene && unitAssignedCount < unitRequired
+  const canDispatchMore =
+    (incident.status === 'open' || incident.status === 'responding') &&
+    unitAssignedCount < unitRequired
+  const needsMore = (isResponding || isOnScene) && unitOnSceneCount < unitRequired
+  const flowRgb = incident.status === 'open' ? '46, 200, 183' : deptMeta.rgb
 
   return (
     <div
       className={[
         'incident-card',
+        `incident-card--dept-${incident.requiredDepartment || 'police'}`,
         isCompact ? 'incident-card--compact' : '',
         isResponding ? 'incident-card--responding' : '',
         isMajor ? 'incident-card--major' : '',
       ].filter(Boolean).join(' ')}
-      style={{ borderLeftColor: activeColor }}
+      style={{
+        borderLeftColor: activeColor,
+        '--incident-accent-rgb': deptMeta.rgb,
+      }}
     >
       {/* Header row */}
       <div className="incident-card__header">
@@ -102,11 +117,6 @@ const IncidentCard = ({
           {isMajor && (
             <div className="status-badge status-badge--live" style={{ background: 'var(--color-urgent)', color: '#fff', fontSize: '0.5rem' }}>
               MAJOR
-            </div>
-          )}
-          {incident.status === 'open' && !isCompact && !isMajor && (
-            <div className="avatar avatar--officer" style={{ width: '28px', height: '28px', flexShrink: 0 }}>
-              <img src="/images/headshots/concerned_citizen.png" alt="Caller" />
             </div>
           )}
           <div className="incident-card__badges" style={{ minWidth: 0 }}>
@@ -119,7 +129,7 @@ const IncidentCard = ({
             </span>
             <span
               className="incident-card__type"
-              style={{ color: isOnScene ? 'var(--color-success)' : isResponding ? 'var(--color-police)' : isMajor ? 'var(--color-urgent)' : '#fff' }}
+              style={{ color: incident.status === 'open' ? '#fff' : deptColor }}
             >
               {incident.type || 'Unknown Call'}
             </span>
@@ -127,7 +137,11 @@ const IncidentCard = ({
         </div>
         <div
           className={`incident-card__timer ${timerColorClass}`}
-          style={{ color: isOnScene ? 'var(--color-success)' : isResponding ? 'var(--color-police)' : undefined, flexShrink: 0, fontWeight: timerColorClass ? 700 : 400 }}
+          style={{
+            color: incident.status === 'open' ? undefined : deptColor,
+            flexShrink: 0,
+            fontWeight: timerColorClass ? 700 : 400,
+          }}
           title={
             incident.status === 'open'
               ? `${formatSeconds(incident.timeRemaining || 0)} until the response window closes`
@@ -143,8 +157,8 @@ const IncidentCard = ({
       {/* Body (full view only) */}
       {!isCompact && (
         <div className="incident-card__body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-            <div>
+          <div className="incident-card__meta-row">
+            <div className="incident-card__meta-copy">
               <p className="muted" style={{ marginBottom: '2px' }}>
                 {incident.address || 'Location on map'}
               </p>
@@ -152,20 +166,42 @@ const IncidentCard = ({
                 {getDeptLabel(incident.requiredDepartment)} · {unitRequired} unit{unitRequired !== 1 ? 's' : ''} required
               </p>
             </div>
-            {isMajor && (
-              <span className="status-badge" style={{ fontSize: '0.48rem', borderColor: 'var(--color-urgent)', color: 'var(--color-urgent)' }}>
-                MULTI-AGENCY
-              </span>
-            )}
-            {(isResponding || isOnScene) && primaryVehicle && !isMajor && (
-              <span className="status-badge" style={{ fontSize: '0.48rem', opacity: 0.75 }}>
-                {getSkillLabel(incident.requiredDepartment)}: {edgePercent}%
-              </span>
-            )}
+            <div className="incident-card__meta-side">
+              {(isResponding || isOnScene) && primaryVehicle && !isMajor && (
+                <span className="status-badge" style={{ fontSize: '0.48rem', opacity: 0.75 }}>
+                  {getSkillLabel(incident.requiredDepartment)}: {edgePercent}%
+                </span>
+              )}
+              {isMajor && (
+                <span className="status-badge" style={{ fontSize: '0.48rem', borderColor: 'var(--color-urgent)', color: 'var(--color-urgent)' }}>
+                  MULTI-AGENCY
+                </span>
+              )}
+              {isResponding && primaryVehicle && (
+                <span className="incident-card__state-note" style={{ color: deptColor }}>
+                  {unitOnSceneCount > 0
+                    ? `${unitOnSceneCount}/${unitRequired} on scene · staging remaining units`
+                    : `Unit ${primaryVehicle.id} advancing`}
+                </span>
+              )}
+              {isOnScene && (
+                <span
+                  className="incident-card__state-note incident-card__state-note--scene"
+                  style={{ color: deptColor }}
+                >
+                  Teams working scene
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Progress / journey bar */}
-          <div className={`incident-bar ${isResponding ? 'incident-bar--journey' : ''}`}>
+          <div className={`incident-bar ${isResponding ? 'incident-bar--journey' : ''} ${isOnScene ? 'incident-bar--scene' : ''}`}>
+            {(isResponding || isOnScene) && (
+              <div
+                className={`incident-bar__flow ${isResponding ? 'incident-bar__flow--responding' : ''} ${isOnScene ? 'incident-bar__flow--scene' : ''}`}
+                style={{ '--flow-rgb': flowRgb }}
+              />
+            )}
             {isResponding && (
               <div
                 className="incident-unit-marker"
@@ -181,33 +217,34 @@ const IncidentCard = ({
               className="incident-bar__fill"
               style={{
                 width: `${Math.max(0, Math.min(100, progress * 100))}%`,
-                background: isResponding ? 'rgba(255,255,255,0.12)' : activeColor,
-                opacity: isResponding ? 0.6 : 1,
+                background: isResponding || isOnScene
+                  ? `linear-gradient(90deg, rgba(${deptMeta.rgb}, 0.14), rgba(${deptMeta.rgb}, 0.28))`
+                  : progressColor,
+                opacity: isResponding || isOnScene ? 0.9 : 1,
               }}
             />
           </div>
 
-          {/* Multi-unit status */}
           {needsMore && (
             <p style={{ margin: '4px 0 0', fontSize: '0.6rem', color: 'var(--color-ems)' }}>
-              ⚠ {unitRequired - unitAssignedCount} more unit{unitRequired - unitAssignedCount !== 1 ? 's' : ''} needed on scene
+              Warning: {unitRequired - unitOnSceneCount} more unit{unitRequired - unitOnSceneCount !== 1 ? 's' : ''} needed on scene
             </p>
           )}
         </div>
       )}
 
       {/* Dispatch controls */}
-      {incident.status === 'open' && (
+      {canDispatchMore && (
         <div className="incident-card__actions" style={{ marginTop: isCompact ? 0 : '8px', gap: '6px' }}>
           <select
             className="cmd-select cmd-select--small"
             value={selectedId || ''}
             onChange={(e) => onSelect && onSelect(incident.id, e.target.value)}
             disabled={!canDispatch}
-            title={canDispatch ? 'Select which unit to dispatch manually' : 'No available units for this incident type'}
+            title={canDispatch ? 'Select the next unit to dispatch manually' : 'No available units for this incident type'}
           >
             {canDispatch
-              ? <option value="">Manual: Choose unit…</option>
+              ? <option value="">Manual: Choose next unit...</option>
               : <option value="">No units available</option>
             }
             {vehicles.map(v => {
@@ -232,7 +269,7 @@ const IncidentCard = ({
             className="dispatch-btn"
             onClick={() => onQuickDispatch && onQuickDispatch(incident.id)}
             disabled={!canDispatch}
-            title="Quick Dispatch — automatically sends the best available unit"
+            title="Quick Dispatch - automatically sends the best available next unit"
           >
             ⚡ QUICK
           </button>
@@ -291,7 +328,7 @@ const IncidentsPanel = ({
       </div>
 
       {/* View toggle */}
-      <div style={{ padding: '6px 10px', display: 'flex', gap: '6px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div className="incident-panel__toolbar">
         <button
           className={`cmd-btn cmd-btn--small ${!filters.isCompact ? 'cmd-btn--primary' : ''}`}
           onClick={() => setFilters((p) => ({ ...p, isCompact: false }))}
@@ -306,11 +343,11 @@ const IncidentsPanel = ({
         >
           Compact
         </button>
-        <span style={{ marginLeft: 'auto', color: 'rgba(255,255,255,0.3)', fontSize: '0.58rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span style={{ color: 'var(--color-urgent)' }}>■</span> P1 &nbsp;
-          <span style={{ color: 'var(--color-ems)' }}>■</span> P2 &nbsp;
-          <span style={{ color: 'var(--color-public_works)' }}>■</span> P3
-        </span>
+        <div className="incident-panel__legend">
+          <span style={{ color: 'var(--color-urgent)' }}>■ P1</span>
+          <span style={{ color: 'var(--color-ems)' }}>■ P2</span>
+          <span style={{ color: 'var(--color-public_works)' }}>■ P3</span>
+        </div>
       </div>
 
       <div className="list-container menu-shell__body">

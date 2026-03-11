@@ -42,7 +42,7 @@ const STEPS = {
     badge: '04',
     color: 'var(--color-tow)',
     title: 'Incident Resolved!',
-    body: 'Great work! You\'ve resolved your first call. The money earned goes toward hiring more staff, buying more units, or building a Fire / EMS station.',
+    body: 'Great work! You\'ve resolved your first call. The money earned goes toward hiring more staff, buying more units, or expanding into Fire and EMS coverage right away.',
     tip: 'Check the Recommended Action panel (top-center of map) to know what to do next.',
   },
 }

@@ -1,6 +1,14 @@
 import { useCallback } from 'react'
 import { clamp } from '../game/utils'
 
+const ROUTE_COLORS = {
+  police: '#4ea8ff',
+  fire: '#ff5b4d',
+  ems: '#ffd84a',
+  tow: '#e6b85b',
+  public_works: '#c8d3df',
+}
+
 export const useMapPresentation = ({
   priorityFilters,
   getFocusFactor,
@@ -77,9 +85,28 @@ export const useMapPresentation = ({
     [defaultDepartmentId, getFocusFactor, isFocusEnabled, vehicleStatus.returning]
   )
 
+  const getRouteStyle = useCallback(
+    (vehicle) => {
+      const department = vehicle.department || defaultDepartmentId
+      const isReturning = vehicle.status === vehicleStatus.returning
+      const isFocusDimmed = isFocusEnabled && getFocusFactor(department) < 1
+      return {
+        className: getRouteClass(vehicle),
+        color: ROUTE_COLORS[department] || ROUTE_COLORS.police,
+        weight: isReturning ? 2.6 : 3.4,
+        opacity: isFocusDimmed ? 0.35 : isReturning ? 0.68 : 0.9,
+        dashArray: isReturning ? '7 6' : undefined,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }
+    },
+    [defaultDepartmentId, getFocusFactor, getRouteClass, isFocusEnabled, vehicleStatus.returning]
+  )
+
   return {
     getIncidentPriorityVisual,
     getIncidentRingMetrics,
     getRouteClass,
+    getRouteStyle,
   }
 }

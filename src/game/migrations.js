@@ -5,6 +5,7 @@ import { DEFAULT_CENTER } from './constants'
 import { createInitialDepartmentReputation } from './reputation'
 import { normalizeUnlockedProgressionHooks } from './progressionHooks'
 import { createInitialCampaignState, normalizeCampaignState } from './campaign'
+import { getImpoundCapacityForStationType, getPatientCapacityForStationType } from './departments'
 
 const isObject = (value) => value && typeof value === 'object' && !Array.isArray(value)
 
@@ -56,6 +57,7 @@ const migrateToV2 = (saveData) => {
   const migrated = { ...saveData }
   if (!Array.isArray(migrated.stations)) migrated.stations = []
   migrated.stations = migrated.stations.map((station, index) => ({
+    ...(station || {}),
     id: Number(station?.id) || index + 1,
     name: station?.name || `Station ${index + 1}`,
     stationType: station?.stationType || 'police_station',
@@ -74,6 +76,12 @@ const migrateToV2 = (saveData) => {
     jailCapacity: Number(station?.jailCapacity) || 3,
     jailCount: Number(station?.jailCount) || 0,
     detentionLog: Array.isArray(station?.detentionLog) ? station.detentionLog : [],
+    patientCapacity:
+      Number(station?.patientCapacity) ||
+      getPatientCapacityForStationType(station?.stationType || 'police_station'),
+    patientCount: Number(station?.patientCount) || 0,
+    patientLog: Array.isArray(station?.patientLog) ? station.patientLog : [],
+    activePatients: Array.isArray(station?.activePatients) ? station.activePatients : [],
     crewMembers: Array.isArray(station?.crewMembers) ? station.crewMembers : [],
     specialization:
       typeof station?.specialization === 'string' && station.specialization
@@ -144,10 +152,26 @@ const migrateToV4 = (saveData) => {
   return migrated
 }
 
+const migrateToV5 = (saveData) => {
+  const migrated = { ...saveData }
+  if (!Array.isArray(migrated.stations)) migrated.stations = []
+  migrated.stations = migrated.stations.map((station) => ({
+    ...(station || {}),
+    impoundCapacity:
+      Number(station?.impoundCapacity) ||
+      getImpoundCapacityForStationType(station?.stationType || 'police_station'),
+    impoundCount: Math.max(0, Number(station?.impoundCount) || 0),
+    activeImpounds: Array.isArray(station?.activeImpounds) ? station.activeImpounds : [],
+    impoundLog: Array.isArray(station?.impoundLog) ? station.impoundLog : [],
+  }))
+  return migrated
+}
+
 const MIGRATIONS = {
   2: migrateToV2,
   3: migrateToV3,
   4: migrateToV4,
+  5: migrateToV5,
 }
 
 export const migrateSaveData = (input, targetSchemaVersion = SAVE_SCHEMA_VERSION) => {
@@ -165,7 +189,10 @@ export const migrateSaveData = (input, targetSchemaVersion = SAVE_SCHEMA_VERSION
   }
 
   // Even if schema is already at/above target, normalize critical shape.
-  if (schemaVersion >= 4) {
+  if (schemaVersion >= 5) {
+    working = migrateToV5(migrateToV4(working))
+    working.schemaVersion = Math.max(schemaVersion, 5)
+  } else if (schemaVersion >= 4) {
     working = migrateToV4(working)
     working.schemaVersion = Math.max(schemaVersion, 4)
   }

@@ -426,12 +426,41 @@ body {
 .incident-card__body {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .incident-card__actions {
   display: flex;
   gap: 5px;
+}
+
+.incident-card__meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.incident-card__meta-copy {
+  min-width: 0;
+}
+
+.incident-card__meta-side {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  flex-shrink: 0;
+}
+
+.incident-card__state-note {
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.incident-card__state-note--scene {
+  color: #37d6bf;
 }
 
 .cmd-select--small {
@@ -441,15 +470,68 @@ body {
 }
 
 .incident-bar {
-  height: 3px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  position: relative;
+  width: 100%;
+  height: 8px;
+  background: rgba(3, 10, 18, 0.9);
+  border-radius: 999px;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .incident-bar__fill {
   height: 100%;
   transition: width 0.5s linear;
+}
+
+.incident-bar__flow {
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: repeating-linear-gradient(
+    115deg,
+    transparent 0 12px,
+    rgba(var(--flow-rgb, 96, 171, 255), 0.95) 12px 18px,
+    transparent 18px 30px
+  );
+  background-size: 34px 100%;
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+
+.incident-bar__flow--responding {
+  animation: incidentFlow 0.9s linear infinite;
+}
+
+.incident-bar__flow--scene {
+  opacity: 0.72;
+  animation: incidentFlowReverse 0.6s linear infinite;
+}
+
+.incident-bar--scene {
+  box-shadow: inset 0 0 0 1px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.2);
+}
+
+@keyframes incidentFlow {
+  from {
+    background-position-x: 0;
+  }
+
+  to {
+    background-position-x: 34px;
+  }
+}
+
+@keyframes incidentFlowReverse {
+  from {
+    background-position-x: 34px;
+  }
+
+  to {
+    background-position-x: 0;
+  }
 }
 
 /* Welcome Terminal */
@@ -1216,6 +1298,47 @@ body {
   user-select: none !important;
 }
 
+.window-wrapper--dept-police {
+  --window-accent-rgb: 96, 171, 255;
+}
+
+.window-wrapper--dept-fire {
+  --window-accent-rgb: 255, 122, 101;
+}
+
+.window-wrapper--dept-ems {
+  --window-accent-rgb: 255, 214, 74;
+}
+
+.window-wrapper--dept-tow {
+  --window-accent-rgb: 230, 184, 91;
+}
+
+.window-wrapper--dept-public_works {
+  --window-accent-rgb: 160, 174, 192;
+}
+
+.window-wrapper[class*='window-wrapper--dept-'] {
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(var(--window-accent-rgb, 96, 171, 255), 0.28) !important;
+}
+
+.window-wrapper[class*='window-wrapper--dept-'] .window-header {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(var(--window-accent-rgb, 96, 171, 255), 0.18),
+      rgba(255, 255, 255, 0.06)
+    ) !important;
+  border-bottom-color: rgba(var(--window-accent-rgb, 96, 171, 255), 0.24);
+}
+
+.window-wrapper[class*='window-wrapper--dept-'] .window-control-btn:hover {
+  background: rgba(var(--window-accent-rgb, 96, 171, 255), 0.88) !important;
+  border-color: rgba(var(--window-accent-rgb, 96, 171, 255), 1) !important;
+}
+
 /* Removing big dark bar at bottom */
 .app {
   display: block !important;
@@ -1894,6 +2017,52 @@ body {
 /* Department color bars are clearer */
 .incident-card {
   border-left-width: 4px !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.12);
+}
+
+.incident-card--dept-police {
+  background: linear-gradient(180deg, rgba(96, 171, 255, 0.12), rgba(12, 18, 26, 0.94) 44%);
+}
+
+.incident-card--dept-fire {
+  background: linear-gradient(180deg, rgba(255, 122, 101, 0.12), rgba(18, 13, 13, 0.94) 44%);
+}
+
+.incident-card--dept-ems {
+  background: linear-gradient(180deg, rgba(255, 214, 74, 0.13), rgba(20, 17, 10, 0.94) 44%);
+}
+
+.incident-card--dept-tow {
+  background: linear-gradient(180deg, rgba(230, 184, 91, 0.12), rgba(19, 16, 11, 0.94) 44%);
+}
+
+.incident-card--dept-public_works {
+  background: linear-gradient(180deg, rgba(160, 174, 192, 0.12), rgba(14, 17, 21, 0.94) 44%);
+}
+
+.incident-card .cmd-select--small {
+  border-color: rgba(var(--incident-accent-rgb, 96, 171, 255), 0.38);
+}
+
+.incident-card .cmd-btn--primary,
+.incident-card .dispatch-btn {
+  border-color: rgba(var(--incident-accent-rgb, 96, 171, 255), 0.52);
+  background: linear-gradient(
+    145deg,
+    rgba(var(--incident-accent-rgb, 96, 171, 255), 0.34),
+    rgba(var(--incident-accent-rgb, 96, 171, 255), 0.18)
+  );
+  box-shadow: 0 8px 20px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.16);
+}
+
+.incident-card .cmd-btn--primary:hover,
+.incident-card .dispatch-btn:hover {
+  border-color: rgba(var(--incident-accent-rgb, 96, 171, 255), 0.68);
+  background: linear-gradient(
+    145deg,
+    rgba(var(--incident-accent-rgb, 96, 171, 255), 0.46),
+    rgba(var(--incident-accent-rgb, 96, 171, 255), 0.24)
+  );
 }
 
 /* Response timer urgency colors */
@@ -2190,6 +2359,25 @@ body {
   flex-shrink: 0;
 }
 
+.incident-panel__toolbar {
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.incident-panel__legend {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+}
+
 .menu-stat-badge {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -2240,58 +2428,126 @@ body {
    ======================================================== */
 
 .settings-panel {
-  padding: 12px;
+  height: 100%;
+  padding: 10px;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.settings-section {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.settings-section__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 10px;
+}
+
+.settings-section__header .eyebrow {
+  margin: 0;
+}
+
+.settings-section__hint {
+  margin: 0;
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.46);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .settings-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
-  gap: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  gap: 10px;
+  min-height: 48px;
 }
 
 .settings-row span strong {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: #fff;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
+  line-height: 1.2;
 }
 
 .settings-row span small {
   display: block;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   color: var(--color-text-muted);
+  line-height: 1.3;
 }
 
 .settings-row input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   accent-color: var(--color-police);
   flex-shrink: 0;
 }
 
-.settings-row--actions {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+.settings-row .cmd-select {
+  min-width: 118px;
+  max-width: 140px;
+  padding: 3px 6px;
+  font-size: 0.6rem;
 }
 
-.settings-row--actions .cmd-btn {
-  align-self: flex-end;
+.settings-row--action-inline {
+  align-items: center;
+}
+
+.settings-row--action-inline .cmd-btn {
+  min-width: 86px;
+  padding: 5px 8px;
+  font-size: 0.6rem;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .settings-note {
-  font-size: 0.62rem;
-  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.34);
   margin: 0;
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .settings-section__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .settings-section__hint {
+    white-space: normal;
+  }
+
+  .settings-row,
+  .settings-row--action-inline {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-row .cmd-select,
+  .settings-row--action-inline .cmd-btn {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 /* ========================================================

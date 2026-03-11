@@ -39,19 +39,8 @@ export const useBuildingPlacement = ({
         if (building.id === STATION_TYPES.prison.id) enabled = true
         if (dept === 'logistics') enabled = true
 
-        // Fire gates
-        if (dept === 'fire' && progression?.fireStationUnlocked) {
-          enabled = true
-        } else if (dept === 'fire') {
-          lockedReason = `Requires ${PROGRESSION_MILESTONES.fireStationUnlockedAt} resolved calls to unlock Fire.`
-        }
-
-        // EMS gates
-        if (dept === 'ems' && progression?.emsStationUnlocked) {
-          enabled = true
-        } else if (dept === 'ems') {
-          lockedReason = `Requires ${PROGRESSION_MILESTONES.emsStationUnlockedAt} resolved calls to unlock EMS.`
-        }
+        // Core emergency services are available from the opening shift.
+        if (dept === 'fire' || dept === 'ems') enabled = true
 
         // Tow gates
         if (dept === 'tow' && progression?.towYardUnlocked) {

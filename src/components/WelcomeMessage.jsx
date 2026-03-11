@@ -179,7 +179,7 @@ const WelcomeMessage = ({ onStart }) => {
                       step: '04',
                       color: 'var(--color-tow)',
                       title: 'Earn and expand',
-                      detail: 'Money from resolved calls lets you hire staff, build new stations, and unlock Fire & EMS departments.',
+                      detail: 'Money from resolved calls lets you hire staff, expand into Fire and EMS immediately, and unlock Tow a little later.',
                     },
                   ].map((item) => (
                     <div key={item.step} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>

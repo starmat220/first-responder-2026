@@ -54,3 +54,29 @@ export const STATION_TYPES = {
 
 export const getDepartment = (departmentId) =>
   DEPARTMENTS[departmentId] || DEPARTMENTS[DEFAULT_DEPARTMENT_ID]
+
+export const getPatientCapacityForStationType = (stationType) => {
+  switch (stationType) {
+    case STATION_TYPES.ems_station.id:
+      return 2
+    case STATION_TYPES.ems_station_small.id:
+      return 1
+    case STATION_TYPES.clinic.id:
+      return 4
+    case STATION_TYPES.hospital.id:
+      return 10
+    default:
+      return 0
+  }
+}
+
+export const getImpoundCapacityForStationType = (stationType) => {
+  switch (stationType) {
+    case STATION_TYPES.tow_yard.id:
+      return 4
+    default:
+      return 0
+  }
+}
+
+export const isHospitalStationType = (stationType) => stationType === STATION_TYPES.hospital.id

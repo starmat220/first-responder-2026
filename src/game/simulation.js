@@ -361,14 +361,18 @@ export const createOnSceneArrivalPatch = ({
   const enoughUnits = nextOnScene.length >= requiredUnits
   
   const onSceneReady = enoughUnits && allDeptsPresent
+  const waitingUnits = Math.max(0, requiredUnits - nextOnScene.length)
+  const waitingLabel = waitingUnits > 0
+    ? `AWAITING ${waitingUnits} UNIT${waitingUnits !== 1 ? 'S' : ''}`
+    : 'AWAITING CO-RESPONSE'
 
   return {
     patch: {
       status: onSceneReady ? INCIDENT_STATUS.on_scene : INCIDENT_STATUS.responding,
-      stageLabel: onSceneReady ? 'ACTIVE RESOLUTION' : 'AWAITING CO-RESPONSE',
+      stageLabel: onSceneReady ? 'ACTIVE RESOLUTION' : waitingLabel,
       assignedVehicleId: nextAssigned[0] || incidentRecord?.assignedVehicleId || null,
       assignedVehicleIds: nextAssigned,
-      etaSeconds: 0,
+      etaSeconds: onSceneReady ? 0 : Number(incidentRecord?.etaSeconds) || 0,
       onSceneRemaining: incidentRecord?.onSceneRemaining || onSceneSeconds,
       arrivedAt,
       onSceneVehicleIds: nextOnScene,

@@ -8,15 +8,15 @@ import '../Theme.css'
 const TAB_META = {
   overview: {
     label: 'Overview',
-    hint: 'Immediate actions, operational risk, and resource status.',
+    hint: 'Station status, operational risk, and live capacity at a glance.',
   },
   vehicles: {
     label: 'Fleet',
-    hint: 'Unit readiness, crew assignment, and response status.',
+    hint: 'Buy vehicles, expand fleet capacity, and manage unit readiness.',
   },
   staffing: {
     label: 'Personnel',
-    hint: 'Hiring, roster assignment, and shift coverage controls.',
+    hint: 'Hire staff, assign crews, and control shift coverage.',
   },
   extensions: {
     label: 'Upgrades',
@@ -87,9 +87,23 @@ const StationPanel = ({
   const isFire = departmentId === DEPARTMENTS.fire.id
   const isEms = departmentId === DEPARTMENTS.ems.id
   const isTow = departmentId === DEPARTMENTS.tow.id
+  const isCoastal = departmentId === DEPARTMENTS.coastal.id
+  const isLogistics = departmentId === DEPARTMENTS.logistics.id
   const isPW = departmentId === DEPARTMENTS.public_works.id
 
-  const glyphText = isPolice ? 'P' : isFire ? 'F' : isEms ? 'E' : isPW ? 'PW' : 'T'
+  const glyphText = isPolice
+    ? 'P'
+    : isFire
+      ? 'F'
+      : isEms
+        ? 'E'
+        : isTow
+          ? 'T'
+          : isCoastal
+            ? 'CR'
+            : isLogistics
+              ? 'LOG'
+              : 'PW'
 
   const activeVehicles = vehicles.filter(v => v.status === vehicleStatus.enroute || v.status === vehicleStatus.on_scene).length
   const availableCount = vehicles.filter(v => v.status === vehicleStatus.available).length
@@ -99,6 +113,8 @@ const StationPanel = ({
     fire: '255, 122, 101',
     ems: '255, 178, 84',
     tow: '255, 209, 125',
+    coastal: '77, 213, 255',
+    logistics: '157, 215, 255',
     public_works: '160, 174, 192',
   }
   const visibleTabs = ['overview', 'vehicles', 'staffing', 'extensions']
@@ -112,8 +128,18 @@ const StationPanel = ({
   const incidentPressure = stationSummary?.nearbyIncidents || 0
   const detentionCount = station?.jailCount || 0
   const detentionCapacity = station?.jailCapacity || 0
+  const patientCount = station?.patientCount || 0
+  const patientCapacity = station?.patientCapacity || 0
+  const impoundCount = station?.impoundCount || 0
+  const impoundCapacity = station?.impoundCapacity || 0
   const detentionLoad = isPolice
     ? detentionCount / Math.max(1, detentionCapacity || 1)
+    : 0
+  const patientLoad = isEms
+    ? patientCount / Math.max(1, patientCapacity || 1)
+    : 0
+  const impoundLoad = isTow
+    ? impoundCount / Math.max(1, impoundCapacity || 1)
     : 0
   const unitLoad = vehicles.length > 0 ? activeVehicles / vehicles.length : 0
   const personnelLoad = personnelCapacity > 0 ? personnelAssigned / personnelCapacity : 0
@@ -122,57 +148,17 @@ const StationPanel = ({
   if (unitLoad > 0.7) riskSignals.push('Most units are committed')
   if (freePersonnelSlots === 0) riskSignals.push('Personnel at capacity')
   if (isPolice && detentionLoad >= 0.85) riskSignals.push('Detention nearing capacity')
+  if (isEms && patientLoad >= 0.85) riskSignals.push('Treatment capacity nearing saturation')
+  if (isTow && impoundLoad >= 0.85) riskSignals.push('Impound capacity nearing saturation')
   const riskLevel = riskSignals.length >= 3 ? 'High' : riskSignals.length > 0 ? 'Elevated' : 'Stable'
   const activeSpecialization = (specializationOptions || []).find(
     (item) => item.id === (station?.specialization || 'standard')
   )
-
-  const quickActions = [
-    {
-      id: 'hire',
-      label: 'Hire +1',
-      onClick: onHirePersonnel,
-      disabled: personnelAssigned >= personnelCapacity,
-      variant: 'primary',
-      title:
-        personnelAssigned >= personnelCapacity
-          ? 'Personnel capacity reached. Expand personnel capacity first.'
-          : `Hire personnel ($${personnelHireCost})`,
-    },
-    {
-      id: 'garage',
-      label: 'Expand Garage',
-      onClick: handleGarageUpgrade,
-      disabled: false,
-      variant: 'ghost',
-      title: `Expand garage ($${garageUpgradeCost})`,
-    },
-    {
-      id: 'hq',
-      label: 'Upgrade HQ',
-      onClick: handleHQUpgrade,
-      disabled: false,
-      variant: 'ghost',
-      title: `Upgrade station HQ ($${hqUpgradeCost})`,
-    },
-  ]
-  if (isPolice) {
-    quickActions.push({
-      id: 'detention',
-      label: 'Transfer Intake',
-      onClick: onTransferDetention,
-      disabled: detentionCount <= 0,
-      variant: 'ghost',
-      title:
-        detentionCount <= 0
-          ? 'No detainees waiting transfer'
-          : 'Transfer detainees to prison facility',
-    })
-  }
+  const showOverviewProcurement = resolvedStationTab === 'vehicles'
 
   return (
     <div
-      className="panel-content-only station-panel-content menu-shell"
+      className={`panel-content-only station-panel-content menu-shell station-panel--${departmentId}`}
       style={{
         '--station-accent-rgb': DEPT_RGB[departmentId] || DEPT_RGB.police,
         display: 'flex',
@@ -240,9 +226,9 @@ const StationPanel = ({
               <div className="beginner-banner" style={{ marginBottom: '12px' }}>
                 <div className="beginner-banner__icon">🚔</div>
                 <div className="beginner-banner__body">
-                  <p><strong>Your station has no units yet.</strong> Purchase a vehicle from the <em>Procurement</em> section below to start responding to incidents.</p>
+                  <p><strong>Your station has no units yet.</strong> Open the <em>Fleet</em> tab to buy your first unit and start responding to incidents.</p>
                   <p style={{ marginTop: '4px', color: 'var(--color-police)', fontWeight: 700, fontSize: '0.68rem' }}>
-                    NEXT STEP: Scroll down → Procurement → Buy a Patrol unit
+                    NEXT STEP: Fleet → Buy a unit
                   </p>
                 </div>
               </div>
@@ -256,34 +242,34 @@ const StationPanel = ({
               </div>
             )}
             <div style={{ display: 'grid', gap: '16px' }}>
-              <ModuleCard title="Immediate Actions">
-                <div className="station-action-row">
-                  {quickActions.map((action) => (
-                    <button
-                      key={action.id}
-                      className={`cmd-btn cmd-btn--small ${action.variant === 'primary' ? 'cmd-btn--primary' : 'cmd-btn--ghost'}`}
-                      onClick={action.onClick}
-                      disabled={action.disabled}
-                      title={action.title}
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="station-grid" style={{ marginTop: '10px' }}>
+              <ModuleCard title="Command Focus">
+                <div className="station-grid">
                   <div className="station-tile">
-                    <p className="station-tile__title">Command Focus</p>
+                    <p className="station-tile__title">Primary Role</p>
                     <p className="muted">
                       {isPolice && 'Patrol coverage and custody flow management.'}
                       {isFire && 'Suppression readiness and rapid apparatus deployment.'}
                       {isEms && 'Patient stabilization and transport continuity.'}
                       {isTow && 'Clearance flow and roadway recovery throughput.'}
+                      {isCoastal && 'Waterfront rescue coverage and marine response readiness.'}
+                      {isLogistics && 'Regional coordination, staging, and support continuity.'}
                       {isPW && 'Infrastructure continuity and utility response readiness.'}
+                    </p>
+                  </div>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Best Next Move</p>
+                    <p className="muted">
+                      {vehicles.length === 0
+                        ? 'Open Fleet and purchase a unit.'
+                        : vehicles.filter(v => v.crewAssigned < v.crewRequired).length > 0
+                          ? 'Open Personnel to crew your units.'
+                          : 'Monitor incidents and expand where pressure is building.'}
                     </p>
                   </div>
                 </div>
               </ModuleCard>
 
+              {showOverviewProcurement && (
               <ModuleCard
                 title="Procurement"
                 action={
@@ -326,6 +312,7 @@ const StationPanel = ({
                   )}
                 </div>
               </ModuleCard>
+              )}
             </div>
 
             <div style={{ display: 'grid', gap: '16px' }}>
@@ -382,10 +369,22 @@ const StationPanel = ({
                     <p className="station-tile__title">Personnel Slots</p>
                     <p className="muted">{personnelAssigned}/{personnelCapacity} ({freePersonnelSlots} open)</p>
                   </div>
+                  {isEms && (
+                    <div className={`station-tile ${patientLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
+                      <p className="station-tile__title">Treatment Capacity</p>
+                      <p className="muted">{patientCount}/{patientCapacity || 0} patients in care</p>
+                    </div>
+                  )}
                   {isPolice && (
                     <div className={`station-tile ${detentionLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
                       <p className="station-tile__title">Detention Capacity</p>
                       <p className="muted">{detentionCount}/{detentionCapacity || 0} in holding</p>
+                    </div>
+                  )}
+                  {isTow && (
+                    <div className={`station-tile ${impoundLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
+                      <p className="station-tile__title">Impound Capacity</p>
+                      <p className="muted">{impoundCount}/{impoundCapacity || 0} recovered vehicles stored</p>
                     </div>
                   )}
                 </div>
@@ -402,14 +401,71 @@ const StationPanel = ({
         )}
 
         {resolvedStationTab === 'vehicles' && (
-          <FleetPanel
-            vehicles={vehicles}
-            formatSeconds={formatSeconds}
-            vehicleStatus={vehicleStatus}
-            onAssignCrew={onAssignCrew}
-            onReleaseCrew={onReleaseCrew}
-            unitTypes={unitTypes}
-          />
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <ModuleCard
+              title="Procurement"
+              action={(
+                <div style={{ display: 'flex', align: 'center', gap: '6px' }}>
+                  <span className="muted">{freeFleetSlots} garage slot{freeFleetSlots !== 1 ? 's' : ''} free</span>
+                  {vehicles.length === 0 && (
+                    <span className="status-badge" style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)', fontSize: '0.48rem' }}>
+                      START HERE
+                    </span>
+                  )}
+                </div>
+              )}
+            >
+              {freeFleetSlots <= 0 && (
+                <p className="muted" style={{ marginBottom: '8px', color: 'var(--color-ems)' }}>
+                  Garage is full. Expand garage first to purchase more units.
+                </p>
+              )}
+              <div className="procurement-row">
+                {(availableUnits || []).length > 0 ? (
+                  availableUnits.map((unit) => (
+                    <button
+                      key={unit.id}
+                      className="procurement-btn"
+                      onClick={() => handleBuyVehicle(unit.id)}
+                      disabled={freeFleetSlots <= 0}
+                      title={
+                        freeFleetSlots <= 0
+                          ? 'No garage slots available. Expand garage first.'
+                          : `Purchase ${unit.label} - needs 1 crew member to dispatch`
+                      }
+                    >
+                      <span className="procurement-btn__label">{unit.label}</span>
+                      <span className="procurement-btn__cost">${unitTypes[unit.id]?.cost ?? unit.cost}</span>
+                      {vehicles.length === 0 && (
+                        <span style={{ fontSize: '0.5rem', color: 'var(--color-success)', display: 'block', marginTop: '2px' }}>
+                          Buy this first
+                        </span>
+                      )}
+                    </button>
+                  ))
+                ) : (
+                  <p className="muted">No additional unit types are available yet. Resolve more calls to unlock.</p>
+                )}
+              </div>
+            </ModuleCard>
+
+            <ModuleCard title="Fleet Management">
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleGarageUpgrade}>
+                  Expand Garage (${garageUpgradeCost})
+                </button>
+              </div>
+            </ModuleCard>
+
+            <FleetPanel
+              vehicles={vehicles}
+              formatSeconds={formatSeconds}
+              vehicleStatus={vehicleStatus}
+              onAssignCrew={onAssignCrew}
+              onReleaseCrew={onReleaseCrew}
+              unitTypes={unitTypes}
+            />
+          </div>
         )}
 
         {resolvedStationTab === 'staffing' && (
@@ -548,12 +604,23 @@ const StationPanel = ({
             <div style={{ display: 'grid', gap: '16px' }}>
               <ModuleCard title="Facility Management">
                 <div style={{ display: 'grid', gap: '8px' }}>
-                  <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleGarageUpgrade}>
-                    Expand Garage (${garageUpgradeCost})
-                  </button>
                   <button className="cmd-btn cmd-btn--ghost cmd-btn--small" onClick={handleHQUpgrade}>
                     Upgrade Station HQ (${hqUpgradeCost})
                   </button>
+                  {isPolice && (
+                    <button
+                      className="cmd-btn cmd-btn--ghost cmd-btn--small"
+                      onClick={onTransferDetention}
+                      disabled={detentionCount <= 0}
+                      title={
+                        detentionCount <= 0
+                          ? 'No detainees waiting transfer'
+                          : 'Transfer detainees to prison facility'
+                      }
+                    >
+                      Transfer Intake
+                    </button>
+                  )}
                   <button
                     className="cmd-btn cmd-btn--urgent cmd-btn--small"
                     style={{ marginTop: '8px' }}

@@ -28,7 +28,7 @@ export const reverseGeocode = async (
   position,
   {
     fetchImpl = fetch,
-    timeoutMs = 5000,
+    timeoutMs = 1200,
   } = {}
 ) => {
   const key = `${position[0].toFixed(4)},${position[1].toFixed(4)}`
@@ -68,7 +68,7 @@ export const fetchNearestRoad = async (
   position,
   {
     fetchImpl = fetch,
-    timeoutMs = 5000,
+    timeoutMs = 1200,
   } = {}
 ) => {
   try {
@@ -115,7 +115,17 @@ export const resolveIncidentSpawnLocation = async ({
     }
 
     const snapped = await fetchNearestRoad(candidate, { fetchImpl })
-    if (!snapped || snapped.distance >= roadSnapDistanceMeters) continue
+    if (!snapped || snapped.distance >= roadSnapDistanceMeters) {
+      if (fallbackCandidate && attempt >= 1) {
+        return {
+          position: fallbackCandidate,
+          roadName: fallbackRoadName,
+          address: `${fallbackRoadName}, ${areaLabel}`,
+          usedFallback: true,
+        }
+      }
+      continue
+    }
 
     fallbackCandidate = snapped.position
     fallbackRoadName = snapped.name || fallbackRoadName

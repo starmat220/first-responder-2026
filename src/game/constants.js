@@ -27,6 +27,8 @@ export const GARAGE_START_CAPACITY = 3
 export const GARAGE_UPGRADE_COST = 800
 export const GARAGE_UPGRADE_BONUS = 2
 export const JAIL_START_CAPACITY = 3
+export const PATIENT_TREATMENT_SECONDS = 150
+export const PATIENT_LOG_LIMIT = 50
 export const PRISON_BUILD_COST = 2500
 export const PRISON_START_CAPACITY = 20
 export const PRISON_STAFF_CAPACITY_START = 8
@@ -60,9 +62,9 @@ export const PROGRESSION_MILESTONES = {
   fireRescueUnlockedAt: 6,
   emsAdvancedCareUnlockedAt: 6,
   towHeavyRecoveryUnlockedAt: 6,
-  fireStationUnlockedAt: 8,
-  emsStationUnlockedAt: 16,
-  towYardUnlockedAt: 24,
+  fireStationUnlockedAt: 0,
+  emsStationUnlockedAt: 0,
+  towYardUnlockedAt: 10,
   publicWorksUnlockedAt: 40,
   aviationUnlockAt: 14,
   hubUnlockAt: 30,
@@ -103,7 +105,7 @@ export const GRADE_MULTIPLIERS = {
 }
 export const ETA_LABEL_LIMIT = 599
 export const STORAGE_KEY = 'fr2026.save.v2'
-export const SAVE_SCHEMA_VERSION = 4
+export const SAVE_SCHEMA_VERSION = 5
 export const APP_VERSION = '0.9.0'
 
 export const VEHICLE_STATUS = {
@@ -184,9 +186,7 @@ export const RADIO_CODES = {
   panic: '10-78', // Officer needs assistance (Escalation)
 }
 
-export const HOSPITAL_POS = [45.8535, -66.4855]
 export const PRECINCT_POS = [45.8485, -66.4755] // Central processing
-export const IMPOUND_POS = [45.8625, -66.4625] // Logistics/Tow yard
 export const TICKER_SPEED = 45
 export const MAJOR_INCIDENT_CHANCE = 0.15 // 15% of spawns are multi-agency
 

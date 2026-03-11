@@ -185,7 +185,11 @@ export const useDispatchSystem = ({
     const validDepartments = [requiredDepartment, ...(incident.coResponseDepartments || [])]
     if (vehicle.status === VEHICLE_STATUS.cooldown) return 'cooldown'
     if (vehicle.status === VEHICLE_STATUS.off_shift) return 'off shift'
-    if (vehicle.returnDestinationType) return 'transporting detainee'
+    if (vehicle.returnDestinationType) {
+      if (vehicle.returnDestinationType === 'medical') return 'transporting patient'
+      if (vehicle.returnDestinationType === 'tow_yard') return 'hauling recovery'
+      return 'transporting detainee'
+    }
     if (!DISPATCHABLE_STATUSES.has(vehicle.status)) return 'busy'
     if (!validDepartments.includes(vehicle.department || DEFAULT_DEPARTMENT_ID)) {
       return `needs ${validDepartments.join('/')}`
@@ -325,12 +329,11 @@ export const useDispatchSystem = ({
     }
     const selectedVehicle = requestedIsAvailable
       ? eligibleVehicles.find((item) => item.id === normalizedId)
-      : eligibleVehicles[0]
+      : null
     if (!selectedVehicle) {
       showMessage('No eligible units available.')
       return
     }
-    const neededUnits = requiredUnits - alreadyAssigned.length
     const selectionPool = [...eligibleVehicles].filter((vehicle) => !alreadyAssigned.includes(vehicle.id))
 
     const rankedPool = rankDispatchCandidates({
@@ -352,35 +355,22 @@ export const useDispatchSystem = ({
       if (idx > -1) neededDepts.splice(idx, 1)
     })
 
-    const chosenVehicles = []
-    if (selectedVehicle && !alreadyAssigned.includes(selectedVehicle.id)) {
-      chosenVehicles.push(selectedVehicle)
-      const idx = neededDepts.indexOf(selectedVehicle.department || DEFAULT_DEPARTMENT_ID)
-      if (idx > -1) neededDepts.splice(idx, 1)
+    let chosenVehicle = selectedVehicle && !alreadyAssigned.includes(selectedVehicle.id)
+      ? selectedVehicle
+      : null
+
+    if (!chosenVehicle && neededDepts.length > 0) {
+      chosenVehicle = rankedPool.find((vehicle) =>
+        neededDepts.includes(vehicle.department || DEFAULT_DEPARTMENT_ID)
+      ) || null
     }
 
-    if (incident.coResponseDepartments?.length > 0) {
-      rankedPool.forEach((vehicle) => {
-        if (chosenVehicles.length >= neededUnits) return
-        if (chosenVehicles.find((item) => item.id === vehicle.id)) return
-        const dept = vehicle.department || DEFAULT_DEPARTMENT_ID
-        const idx = neededDepts.indexOf(dept)
-        if (idx > -1) {
-          chosenVehicles.push(vehicle)
-          neededDepts.splice(idx, 1)
-        }
-      })
+    if (!chosenVehicle) {
+      chosenVehicle = rankedPool[0] || null
     }
 
-    rankedPool.forEach((vehicle) => {
-      if (chosenVehicles.length >= neededUnits) return
-      if (!chosenVehicles.find((item) => item.id === vehicle.id)) {
-        chosenVehicles.push(vehicle)
-      }
-    })
-
-    if (chosenVehicles.length < neededUnits) {
-      showMessage(`Need ${neededUnits} eligible units for this call.`)
+    if (!chosenVehicle) {
+      showMessage('No eligible units available for dispatch.')
       return
     }
 
@@ -390,7 +380,7 @@ export const useDispatchSystem = ({
     const routingDuration = unlockedTech.includes('advanced_dispatch') ? 150 : 300 // 1.5s vs 3s roughly (fake visual delay)
 
     const routingStartedAt = Date.now()
-    const selectedIds = chosenVehicles.map((vehicle) => vehicle.id)
+    const selectedIds = [chosenVehicle.id]
     vehiclesRef.current = vehiclesRef.current.map((item) =>
       selectedIds.includes(item.id)
         ? {
@@ -448,12 +438,19 @@ export const useDispatchSystem = ({
 
     try {
       const routeResults = await Promise.all(
-        chosenVehicles.map((vehicle) => {
+        selectedIds.map((vehicleId) => {
+          const vehicle = vehiclesRef.current.find((item) => item.id === vehicleId)
+          if (!vehicle) return null
           const unitDef = getUnitById(vehicle.unitType)
           const isDirect = !!unitDef?.isAviation || !!unitDef?.isWater
           return buildRoute(vehicle.position, incident.position, isDirect)
         })
       )
+
+      if (routeResults.some((result) => !result)) {
+        showMessage('Dispatch route failed. Try again.')
+        return
+      }
 
       const enroutePatch = (prev) => prev.map((item) => {
         const index = selectedIds.indexOf(item.id)

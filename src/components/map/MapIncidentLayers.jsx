@@ -290,7 +290,7 @@ export const IncidentMarkers = ({
   </>
 )
 
-export const VehicleRoutes = ({ vehicles, vehicleStatus, getRouteClass }) => (
+export const VehicleRoutes = ({ vehicles, vehicleStatus, getRouteStyle }) => (
   <>
     {vehicles
       .filter((vehicle) => vehicle.routeData && vehicle.status !== vehicleStatus.routing)
@@ -298,7 +298,7 @@ export const VehicleRoutes = ({ vehicles, vehicleStatus, getRouteClass }) => (
         <Polyline
           key={`route-${vehicle.id}`}
           positions={vehicle.routeData.coords}
-          className={getRouteClass(vehicle)}
+          pathOptions={getRouteStyle(vehicle)}
         />
       ))}
   </>

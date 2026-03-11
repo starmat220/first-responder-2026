@@ -3,7 +3,7 @@ import { buildRoute } from '../game/routes'
 import { getTravelSpeedKph } from '../game/speed'
 import { clamp } from '../game/utils'
 import { getUnitById } from '../game/catalog'
-import { VEHICLE_STATUS, DEFAULT_CENTER, HOSPITAL_POS, IMPOUND_POS } from '../game/constants'
+import { VEHICLE_STATUS, DEFAULT_CENTER } from '../game/constants'
 
 export const useVehicleReturnLogic = ({
   vehicles,
@@ -16,7 +16,6 @@ export const useVehicleReturnLogic = ({
   setVehicles,
   addRadioLogRef,
   getDepartmentShortLabel,
-  progression,
   weather,
 }) => {
   const pendingReturnRoutes = useRef(new Set())
@@ -36,12 +35,18 @@ export const useVehicleReturnLogic = ({
       let destPos = null
 
       try {
-        if (vehicle.returnDestinationType === 'hospital' && progression?.emsStationUnlocked) {
-          destPos = HOSPITAL_POS
-          destination = { name: 'Regional Hospital', position: HOSPITAL_POS }
-        } else if (vehicle.returnDestinationType === 'impound' && progression?.towYardUnlocked) {
-          destPos = IMPOUND_POS
-          destination = { name: 'Regional Impound', position: IMPOUND_POS }
+        if (vehicle.returnDestinationType === 'medical') {
+          destination =
+            getStationById(vehicle.returnDestinationId) ||
+            getStationById(vehicle.homeStationId) ||
+            activeStation
+          destPos = destination?.position
+        } else if (vehicle.returnDestinationType === 'tow_yard') {
+          destination =
+            getStationById(vehicle.returnDestinationId) ||
+            getStationById(vehicle.homeStationId) ||
+            activeStation
+          destPos = destination?.position
         } else if (vehicle.returnDestinationType === 'prison') {
           destination = getPrisonById(vehicle.returnDestinationId)
           destPos = destination?.position
@@ -138,5 +143,5 @@ export const useVehicleReturnLogic = ({
         pendingReturnRoutes.current.delete(vehicle.id)
       }
     })
-  }, [vehicles, vehiclesRef, activeStation, getPrisonById, getStationById, getStationResponseBonus, simSpeedRef, setVehicles, addRadioLogRef, getDepartmentShortLabel, weather, progression])
+  }, [vehicles, vehiclesRef, activeStation, getPrisonById, getStationById, getStationResponseBonus, simSpeedRef, setVehicles, addRadioLogRef, getDepartmentShortLabel, weather])
 }

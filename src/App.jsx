@@ -89,9 +89,7 @@ import {
   MAJOR_INCIDENT_CHANCE,
   MAJOR_INCIDENT_TYPES,
   RESEARCH_CATALOG,
-  HOSPITAL_POS,
   PRECINCT_POS,
-  IMPOUND_POS,
 } from './game/constants'
 import { clamp, formatSeconds } from './game/utils'
 import { haversineMeters, randomPointNear, sanitizePosition } from './game/geo'
@@ -102,10 +100,17 @@ import {
   maybeAdvanceWeather,
   describeWeather,
   fetchLiveWeatherForPosition,
+  WEATHER_CONDITIONS,
 } from './game/weather'
 import { autoAssignCrewForStations, getCrewRequirement } from './game/crew'
 import { ensureCaseEntry } from './game/cases'
-import { DEFAULT_DEPARTMENT_ID, DEPARTMENTS, STATION_TYPES } from './game/departments'
+import {
+  DEFAULT_DEPARTMENT_ID,
+  DEPARTMENTS,
+  STATION_TYPES,
+  getImpoundCapacityForStationType,
+  getPatientCapacityForStationType,
+} from './game/departments'
 import {
   getUnitById,
   getUnitsByDepartment,
@@ -706,6 +711,10 @@ function App() {
       const matched = String(currentWeatherSummary || '').match(/-?\d+\s?C/i)
       return matched ? matched[0].replace(/\s+/g, '') : '--'
     })()
+  const weatherConditionLabel = useMemo(() => {
+    const conditionId = typeof weather?.condition === 'string' ? weather.condition : 'clear'
+    return WEATHER_CONDITIONS[conditionId]?.label || 'Weather'
+  }, [weather?.condition])
   const activeLiveEvent = useMemo(() => {
     const normalized = normalizeLiveEvent(liveEvent)
     if (!normalized) return null
@@ -795,6 +804,49 @@ function App() {
   useEffect(() => {
     stationsRef.current = stations
   }, [stations])
+
+  const reconcileStationCrewRoster = useCallback((stationItem) => {
+    if (!stationItem) return stationItem
+    const capacity = Math.max(0, Number(stationItem.personnelCapacity) || PERSONNEL_CAPACITY_START)
+    const existingCrewMembers = Array.isArray(stationItem.crewMembers) ? stationItem.crewMembers : []
+    const normalizedAssigned = clamp(
+      Math.max(Number(stationItem.personnelAssigned) || 0, existingCrewMembers.length),
+      0,
+      capacity
+    )
+    if (
+      existingCrewMembers.length === normalizedAssigned &&
+      Array.isArray(stationItem.crewMembers) &&
+      (stationItem.personnelAssigned || 0) === normalizedAssigned
+    ) {
+      return stationItem
+    }
+
+    const nextCrewMembers = existingCrewMembers.slice(0, normalizedAssigned)
+    while (nextCrewMembers.length < normalizedAssigned) {
+      nextCrewMembers.push(
+        generateCrewMember(stationItem.department || DEFAULT_DEPARTMENT_ID)
+      )
+    }
+
+    return {
+      ...stationItem,
+      personnelAssigned: normalizedAssigned,
+      crewMembers: nextCrewMembers,
+    }
+  }, [])
+
+  useEffect(() => {
+    setStations((prev) => {
+      let changed = false
+      const next = prev.map((stationItem) => {
+        const reconciled = reconcileStationCrewRoster(stationItem)
+        if (reconciled !== stationItem) changed = true
+        return reconciled
+      })
+      return changed ? next : prev
+    })
+  }, [reconcileStationCrewRoster])
 
   useEffect(() => {
     INCIDENT_ICON_CACHE.clear()
@@ -1693,6 +1745,37 @@ function App() {
     return [sizeValue, sizeValue]
   }, [mapZoom])
 
+  const getStationDepartmentId = useCallback(
+    (station) => getDepartmentId(station?.department || STATION_TYPES[station?.stationType]?.department),
+    [getDepartmentId]
+  )
+
+  const getStationCapacityBadgeMarkup = useCallback((station) => {
+    const departmentId = getStationDepartmentId(station)
+    if (departmentId === DEPARTMENTS.police.id) {
+      const count = Math.max(0, Number(station?.jailCount) || 0)
+      const capacity = Math.max(0, Number(station?.jailCapacity) || 0)
+      if (capacity <= 0) return ''
+      return `<span class="marker__capacity marker__capacity--detention" aria-hidden="true">D ${count}/${capacity}</span>`
+    }
+    if (departmentId === DEPARTMENTS.ems.id) {
+      const count = Math.max(0, Number(station?.patientCount) || 0)
+      const capacity = Math.max(0, Number(station?.patientCapacity) || 0)
+      if (capacity <= 0) return ''
+      return `<span class="marker__capacity marker__capacity--medical" aria-hidden="true">M ${count}/${capacity}</span>`
+    }
+    if (departmentId === DEPARTMENTS.tow.id) {
+      const count = Math.max(0, Number(station?.impoundCount) || 0)
+      const capacity = Math.max(0, Number(station?.impoundCapacity) || 0)
+      if (capacity <= 0) return ''
+      return `<span class="marker__capacity marker__capacity--impound" aria-hidden="true">I ${count}/${capacity}</span>`
+    }
+    const assigned = Math.max(0, Number(station?.personnelAssigned) || 0)
+    const capacity = Math.max(0, Number(station?.personnelCapacity) || 0)
+    if (capacity <= 0) return ''
+    return `<span class="marker__capacity marker__capacity--staff" aria-hidden="true">S ${assigned}/${capacity}</span>`
+  }, [getStationDepartmentId])
+
   const stationIcon = useMemo(
     () =>
       makeMarkerIcon(
@@ -1738,6 +1821,24 @@ function App() {
       ),
     [getCustomMarkerMarkup, getMarkerSize]
   )
+  const coastalStationIcon = useMemo(
+    () =>
+      makeMarkerIcon(
+        'marker--station marker--station-coastal',
+        getCustomMarkerMarkup([], ICONS.station, DEPARTMENTS.coastal.id, true),
+        getMarkerSize(30)
+      ),
+    [getCustomMarkerMarkup, getMarkerSize]
+  )
+  const logisticsStationIcon = useMemo(
+    () =>
+      makeMarkerIcon(
+        'marker--station marker--station-logistics',
+        getCustomMarkerMarkup([], ICONS.station, DEPARTMENTS.logistics.id, true),
+        getMarkerSize(30)
+      ),
+    [getCustomMarkerMarkup, getMarkerSize]
+  )
   const prisonIcon = useMemo(
     () =>
       makeMarkerIcon(
@@ -1747,6 +1848,81 @@ function App() {
       ),
     [getCustomMarkerMarkup, getMarkerSize]
   )
+  const getStationIcon = useCallback((stationItem) => {
+    const size = getMarkerSize(30)
+    const departmentId = getStationDepartmentId(stationItem)
+    const baseClass =
+      departmentId === DEPARTMENTS.fire.id
+        ? 'marker--station marker--station-fire'
+        : departmentId === DEPARTMENTS.ems.id
+          ? 'marker--station marker--station-ems'
+          : departmentId === DEPARTMENTS.tow.id
+            ? 'marker--station marker--station-tow'
+            : departmentId === DEPARTMENTS.public_works.id
+              ? 'marker--station marker--station-pw'
+              : departmentId === DEPARTMENTS.coastal.id
+                ? 'marker--station marker--station-coastal'
+                : departmentId === DEPARTMENTS.logistics.id
+                  ? 'marker--station marker--station-logistics'
+              : 'marker--station'
+    const capacityMarkup = getStationCapacityBadgeMarkup(stationItem)
+    if (!capacityMarkup) {
+      if (departmentId === DEPARTMENTS.fire.id) return fireStationIcon
+      if (departmentId === DEPARTMENTS.ems.id) return emsStationIcon
+      if (departmentId === DEPARTMENTS.tow.id) return towYardIcon
+      if (departmentId === DEPARTMENTS.public_works.id) return pwDepotIcon
+      if (departmentId === DEPARTMENTS.coastal.id) return coastalStationIcon
+      if (departmentId === DEPARTMENTS.logistics.id) return logisticsStationIcon
+      return stationIcon
+    }
+
+    const markup =
+      departmentId === DEPARTMENTS.fire.id
+        ? `${getCustomMarkerMarkup(['custom-station-fire.png'], ICONS.fire_station, 'fire', true)}${capacityMarkup}`
+        : departmentId === DEPARTMENTS.ems.id
+          ? `${getCustomMarkerMarkup(['custom-station-ems.png'], ICONS.ems_station, 'ems', true)}${capacityMarkup}`
+          : departmentId === DEPARTMENTS.tow.id
+            ? `${getCustomMarkerMarkup(['custom-station-tow.png'], ICONS.tow_yard, 'tow', true)}${capacityMarkup}`
+            : departmentId === DEPARTMENTS.public_works.id
+              ? `${getCustomMarkerMarkup(['custom-station-pw.png'], ICONS.logistics || ICONS.tow_yard, 'public_works', true)}${capacityMarkup}`
+              : departmentId === DEPARTMENTS.coastal.id
+                ? `${getCustomMarkerMarkup([], ICONS.station, DEPARTMENTS.coastal.id, true)}${capacityMarkup}`
+                : departmentId === DEPARTMENTS.logistics.id
+                  ? `${getCustomMarkerMarkup([], ICONS.station, DEPARTMENTS.logistics.id, true)}${capacityMarkup}`
+                  : `${getCustomMarkerMarkup(['custom-station-police.png'], ICONS.station, 'police', true)}${capacityMarkup}`
+    const cacheKey = [
+      'station',
+      stationItem?.stationType || '',
+      stationItem?.department || '',
+      stationItem?.personnelAssigned || 0,
+      stationItem?.personnelCapacity || 0,
+      stationItem?.jailCount || 0,
+      stationItem?.jailCapacity || 0,
+      stationItem?.patientCount || 0,
+      stationItem?.patientCapacity || 0,
+      stationItem?.impoundCount || 0,
+      stationItem?.impoundCapacity || 0,
+      size[0],
+      size[1],
+    ].join('|')
+    const cached = VEHICLE_ICON_CACHE.get(cacheKey)
+    if (cached) return cached
+    const icon = makeMarkerIcon(baseClass, markup, size)
+    VEHICLE_ICON_CACHE.set(cacheKey, icon)
+    return icon
+  }, [
+    coastalStationIcon,
+    emsStationIcon,
+    fireStationIcon,
+    getCustomMarkerMarkup,
+    getMarkerSize,
+    getStationCapacityBadgeMarkup,
+    getStationDepartmentId,
+    logisticsStationIcon,
+    pwDepotIcon,
+    stationIcon,
+    towYardIcon,
+  ])
   const placementIcon = useMemo(
     () => makeMarkerIcon('marker--placement', ICONS.placement, getMarkerSize(22)),
     [getMarkerSize]
@@ -1879,6 +2055,17 @@ function App() {
   const getDepartmentColorClass = (departmentId) =>
     `department-color--${getDepartmentId(departmentId)}`
 
+  const getDepartmentColorVar = (departmentId) => {
+    const normalizedDepartment = getDepartmentId(departmentId)
+    if (normalizedDepartment === DEPARTMENTS.fire.id) return 'var(--color-fire)'
+    if (normalizedDepartment === DEPARTMENTS.ems.id) return 'var(--color-ems)'
+    if (normalizedDepartment === DEPARTMENTS.tow.id) return 'var(--color-tow)'
+    if (normalizedDepartment === DEPARTMENTS.coastal.id) return '#4dd5ff'
+    if (normalizedDepartment === DEPARTMENTS.logistics.id) return '#9dd7ff'
+    if (normalizedDepartment === DEPARTMENTS.public_works.id) return 'var(--color-public_works)'
+    return 'var(--color-police)'
+  }
+
   const getUnitDisplayLabel = (vehicle) => {
     const unitType = vehicle?.unitType || 'patrol'
     const department = vehicle?.department || DEFAULT_DEPARTMENT_ID
@@ -1951,26 +2138,40 @@ function App() {
     return fallbackIcon
   }
 
-  const getVehicleStateBadgesMarkup = (hasDetainee) => {
+  const getVehicleTransportBadge = (vehicle) => {
+    if (!vehicle?.returnDestinationType) return null
+    if (['prison', 'jail', 'station'].includes(vehicle.returnDestinationType)) {
+      return { label: 'D', className: 'marker__state--detention', title: 'Transporting detainee' }
+    }
+    if (vehicle.returnDestinationType === 'medical') {
+      return { label: 'M', className: 'marker__state--medical', title: 'Transporting patient' }
+    }
+    if (vehicle.returnDestinationType === 'tow_yard') {
+      return { label: 'I', className: 'marker__state--impound', title: 'Hauling recovery' }
+    }
+    return null
+  }
+
+  const getVehicleStateBadgesMarkup = (transportBadge) => {
     const badges = []
-    if (hasDetainee) {
+    if (transportBadge) {
       badges.push(
-        `<span class="marker__state marker__state--detainee" aria-hidden="true" title="Transporting detainee">
-          D
+        `<span class="marker__state ${transportBadge.className}" aria-hidden="true" title="${transportBadge.title}">
+          ${transportBadge.label}
         </span>`
       )
     }
     return badges.join('')
   }
 
-  const getVehicleIcon = (status, unitType, department, hasDetainee) => {
+  const getVehicleIcon = (status, unitType, department, transportBadge = null) => {
     const size = getMarkerSize(unitType === 'patrol' ? 23 : 25)
     const departmentId = department || DEFAULT_DEPARTMENT_ID
     const cacheKey = [
       status,
       unitType || 'patrol',
       departmentId,
-      hasDetainee ? 1 : 0,
+      transportBadge?.label || '',
       size[0],
       size[1],
     ].join('|')
@@ -1993,7 +2194,7 @@ function App() {
                 : 'marker--vehicle'
     const departmentClass = `marker--department-${departmentId}`
     const combinedClass = `${className} ${departmentClass}`
-    const iconMarkup = `${getUnitIconMarkup(unitType, status, departmentId)}${getVehicleStateBadgesMarkup(hasDetainee)}`
+    const iconMarkup = `${getUnitIconMarkup(unitType, status, departmentId)}${getVehicleStateBadgesMarkup(transportBadge)}`
     const icon = makeMarkerIcon(combinedClass, iconMarkup, size)
     VEHICLE_ICON_CACHE.set(cacheKey, icon)
     return icon
@@ -2038,29 +2239,20 @@ function App() {
       return
     }
 
-    if (resolvedCount >= 3) {
+    if (resolvedCount >= PROGRESSION_MILESTONES.towYardUnlockedAt - 1) {
       emitTutorialTip(
-        'crew_staffing',
-        'Hire personnel to keep units crewed as call volume ramps up.',
-        'TIP-4'
-      )
-      return
-    }
-
-    if (resolvedCount >= PROGRESSION_MILESTONES.fireStationUnlockedAt - 1) {
-      emitTutorialTip(
-        'prep_fire_unlock',
-        'Fire station unlock is close. Keep cash available for expansion.',
+        'prep_tow_unlock',
+        'Tow operations unlock next. Reserve cash for recovery trucks and yard space.',
         'TIP-5'
       )
       return
     }
 
-    if (resolvedCount >= PROGRESSION_MILESTONES.emsStationUnlockedAt - 1) {
+    if (resolvedCount >= 3) {
       emitTutorialTip(
-        'prep_ems_unlock',
-        'EMS unlock is approaching. Reserve funds for ambulances and medics.',
-        'TIP-6'
+        'crew_staffing',
+        'Hire personnel to keep units crewed as call volume ramps up.',
+        'TIP-4'
       )
     }
   }, [
@@ -2278,11 +2470,18 @@ function App() {
     }
     const newStationId = nextStationId
     const stationDef = STATION_TYPES[stationType]
+    const patientCapacity = getPatientCapacityForStationType(stationType)
+    const impoundCapacity = getImpoundCapacityForStationType(stationType)
 
     // Stats based on size/category
     const isSmall = stationDef.size === 'small'
     const isHub = stationDef.category === 'hub' || stationDef.category === 'medical_hub'
     const isAviation = stationDef.category === 'aviation'
+    const initialPersonnelAssigned = Math.min(PERSONNEL_HIRE_COUNT, PERSONNEL_CAPACITY_START)
+    const initialCrewMembers = Array.from(
+      { length: initialPersonnelAssigned },
+      () => generateCrewMember(building.department || DEFAULT_DEPARTMENT_ID)
+    )
 
     const newStation = {
       id: newStationId,
@@ -2301,11 +2500,20 @@ function App() {
       shiftPreset: '24_7',
       minOnDutyDay: 1,
       minOnDutyNight: 1,
-      personnelAssigned: Math.min(PERSONNEL_HIRE_COUNT, PERSONNEL_CAPACITY_START),
+      personnelAssigned: initialPersonnelAssigned,
       personnelCapacity: PERSONNEL_CAPACITY_START,
+      crewMembers: initialCrewMembers,
       jailCapacity: JAIL_START_CAPACITY,
       jailCount: 0,
       detentionLog: [],
+      patientCapacity,
+      patientCount: 0,
+      patientLog: [],
+      activePatients: [],
+      activeImpounds: [],
+      impoundCapacity,
+      impoundCount: 0,
+      impoundLog: [],
     }
     setStations((prev) => [...prev, newStation])
     setActiveStationId(newStationId)
@@ -3926,7 +4134,7 @@ function App() {
             prev.filter((id) => !newlyCompletedGoalIds.includes(id))
           )
         }, 1800)
-        showMessage('Operations objective complete. Claim reward in Intel panel.')
+        showMessage('Operations objective complete. Claim reward in Objectives.')
       }
     }
   }
@@ -4464,7 +4672,7 @@ function App() {
     campaignNextObjective,
     onOpenCampaign: () => setShowCampaign(true),
   })
-  const { getIncidentPriorityVisual, getIncidentRingMetrics, getRouteClass } =
+  const { getIncidentPriorityVisual, getIncidentRingMetrics, getRouteStyle } =
     useMapPresentation({
       priorityFilters: incidentFilters.priority,
       getFocusFactor,
@@ -4668,6 +4876,7 @@ function App() {
         playerAvatar={playerAvatar}
         missionDayKey={missionDayKey}
         weatherSummary={currentWeatherSummary}
+        weatherConditionLabel={weatherConditionLabel}
         weatherTemperatureLabel={weatherTemperatureLabel}
         weatherNextUpdateLabel={weatherNextUpdateLabel}
         weatherLocationLabel={weatherLocationLabel}
@@ -4857,25 +5066,11 @@ function App() {
             resetKey={uiResetKey}
           >
             <div className="test-panel__meta">
-              <label className="muted">
-                Balance Profile
-                <select
-                  className="cmd-select"
-                  value={tuningPresetId}
-                  onChange={(event) => setTuningPresetId(event.target.value)}
-                >
-                  {Object.entries(TUNING_PRESETS).map(([id, preset]) => (
-                    <option key={id} value={id}>
-                      {preset.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <button
                 className={`cmd-btn ${showTelemetry ? 'cmd-btn--primary' : ''}`}
                 onClick={() => setShowTelemetry((prev) => !prev)}
               >
-                {showTelemetry ? 'Hide Intel' : 'Show Intel'}
+                {showTelemetry ? 'Hide Objectives' : 'Show Objectives'}
               </button>
             </div>
             <div className="test-panel__actions" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px' }}>
@@ -4956,7 +5151,7 @@ function App() {
         {showTelemetry && (
           <Window
             id="intel"
-            title="OPERATIONS INTEL"
+            title="SHIFT OBJECTIVES"
             initialPos={{ x: window.innerWidth - 720, y: window.innerHeight - 420 }}
             initialSize={{ width: 360, height: 400 }}
             onClose={() => setShowTelemetry(false)}
@@ -5064,25 +5259,6 @@ function App() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
 
-          {/* Regional Infrastructure - Condition-based Visibility */}
-          {progression.emsStationUnlocked && (
-            <Marker position={HOSPITAL_POS} icon={emsStationIcon}>
-              <Tooltip permanent direction="top" offset={[0, -8]} className="station-badge ems-badge">
-                <div className="station-badge__name">REGIONAL HOSPITAL</div>
-                <div className="station-badge__meta">LEVEL 1 TRAUMA CENTER</div>
-              </Tooltip>
-            </Marker>
-          )}
-
-          {progression.towYardUnlocked && (
-            <Marker position={IMPOUND_POS} icon={towYardIcon}>
-              <Tooltip permanent direction="top" offset={[0, -8]} className="station-badge tow-badge">
-                <div className="station-badge__name">REGIONAL IMPOUND</div>
-                <div className="station-badge__meta">LOGISTICS & RECOVERY</div>
-              </Tooltip>
-            </Marker>
-          )}
-
           <MapClickHandler
             active={placingStation}
             onMapClick={handleMapClick}
@@ -5120,21 +5296,11 @@ function App() {
               (vehicle) => vehicle.homeStationId === stationItem.id
             )
             const parkedAtStation = stationVehicles.filter((vehicle) => vehicle.parked).length
-            const stationMapIcon =
-              stationItem.stationType === STATION_TYPES.fire_station.id
-                ? fireStationIcon
-                : stationItem.stationType === STATION_TYPES.ems_station.id
-                  ? emsStationIcon
-                  : stationItem.stationType === STATION_TYPES.tow_yard.id
-                    ? towYardIcon
-                    : stationItem.department === 'public_works'
-                      ? pwDepotIcon
-                      : stationIcon
             return (
               <Marker
                 key={`station-${stationItem.id}`}
                 position={stationItem.position}
-                icon={stationMapIcon}
+                icon={getStationIcon(stationItem)}
                 eventHandlers={{
                   click: () => {
                     setActiveStationId(stationItem.id)
@@ -5269,9 +5435,7 @@ function App() {
           {vehicles
             .filter((vehicle) => !vehicle.parked && vehicle.status !== VEHICLE_STATUS.on_scene)
             .map((vehicle) => {
-              const hasDetainee =
-                vehicle.returnDestinationType === 'prison' ||
-                vehicle.returnDestinationType === 'jail'
+              const transportBadge = getVehicleTransportBadge(vehicle)
               return (
                 <Marker
                   key={vehicle.id}
@@ -5280,7 +5444,7 @@ function App() {
                     vehicle.status,
                     vehicle.unitType || 'patrol',
                     vehicle.department,
-                    hasDetainee
+                    transportBadge
                   )}
                 >
                   <Tooltip
@@ -5292,12 +5456,12 @@ function App() {
                     )}`}
                   >
                     {vehicle.name} | {getUnitDisplayLabel(vehicle)} | {vehicle.status.replaceAll('_', ' ')}
-                    {hasDetainee && <span className="vehicle-label__detainee">Detainee</span>}
+                    {transportBadge && <span className="vehicle-label__detainee">{transportBadge.title}</span>}
                   </Tooltip>
                   <Popup>
                     <strong>{vehicle.name}</strong>
                     <div>Status: {vehicle.status.replaceAll('_', ' ')}</div>
-                    {hasDetainee && <div>Transporting detainee</div>}
+                    {transportBadge && <div>{transportBadge.title}</div>}
                     {(vehicle.status === VEHICLE_STATUS.enroute ||
                       vehicle.status === VEHICLE_STATUS.returning) && (
                         <div>
@@ -5315,7 +5479,7 @@ function App() {
           <VehicleRoutes
             vehicles={vehicles}
             vehicleStatus={VEHICLE_STATUS}
-            getRouteClass={getRouteClass}
+            getRouteStyle={getRouteStyle}
           />
         </MapContainer>
 
@@ -5344,7 +5508,15 @@ function App() {
         {placingStation && !placingStationPosition && (
           <div className="placement-bar placement-bar--top">
             <div className="hud-section">
-              <div className="hud-logo" style={{ borderColor: 'var(--color-police)', color: 'var(--color-police)' }}>GPS</div>
+              <div
+                className="hud-logo"
+                style={{
+                  borderColor: getDepartmentColorVar(STATION_TYPES[placingBuildingType]?.department),
+                  color: getDepartmentColorVar(STATION_TYPES[placingBuildingType]?.department),
+                }}
+              >
+                GPS
+              </div>
               <div className="hud-info">
                 <h1>PLACE {placingBuildingLabel.toUpperCase()}</h1>
                 <p className="subhead">Select coordinates on the tactical grid</p>
@@ -5361,7 +5533,15 @@ function App() {
         {placingStation && placingStationPosition && (
           <div className="placement-bar placement-bar--top">
             <div className="hud-section">
-              <div className="hud-logo" style={{ borderColor: 'var(--color-success)', color: 'var(--color-success)' }}>FIX</div>
+              <div
+                className="hud-logo"
+                style={{
+                  borderColor: getDepartmentColorVar(STATION_TYPES[placingBuildingType]?.department),
+                  color: getDepartmentColorVar(STATION_TYPES[placingBuildingType]?.department),
+                }}
+              >
+                FIX
+              </div>
               <div className="hud-info">
                 <h1>CONFIRM LOCATION</h1>
                 <p className="subhead">Verify site suitability for {placingBuildingLabel.toLowerCase()}</p>
@@ -5384,7 +5564,7 @@ function App() {
             id="incidents"
             title="ACTIVE INCIDENTS"
             initialPos={{ x: 16, y: 96 }}
-            initialSize={{ width: 340, height: 600 }}
+            initialSize={{ width: 404, height: 560 }}
             onClose={() => setShowIncidents(false)}
             resetKey={uiResetKey}
           >
@@ -5583,146 +5763,190 @@ function App() {
           <Window
             id="settings"
             title="SETTINGS"
-            initialPos={{ x: window.innerWidth - 520, y: window.innerHeight - 320 }}
-            initialSize={{ width: 380, height: 560 }}
+            initialPos={{ x: window.innerWidth - 470, y: 96 }}
+            initialSize={{ width: 420, height: Math.min(480, Math.max(400, window.innerHeight - 180)) }}
             onClose={() => setShowSettings(false)}
             resetKey={uiResetKey}
           >
             <div className="settings-panel">
-              <p className="eyebrow">Interface</p>
-              <label className="settings-row">
-                <span>
-                  <strong>Show Next Steps</strong>
-                  <small>Toggle the Recommended Action panel.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={showNextSteps}
-                  onChange={(event) => setShowNextSteps(event.target.checked)}
-                />
-              </label>
-              <label className="settings-row">
-                <span>
-                  <strong>Remember Window Positions</strong>
-                  <small>Save menu/window positions and minimized state.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={rememberWindowPositions}
-                  onChange={(event) => setRememberWindowPositions(event.target.checked)}
-                />
-              </label>
-              <label className="settings-row">
-                <span>
-                  <strong>High Contrast</strong>
-                  <small>Increase foreground/background separation.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={accessibilityState.highContrastMode}
-                  onChange={(event) =>
-                    setAccessibilityState((prev) => ({
-                      ...prev,
-                      highContrastMode: event.target.checked,
-                    }))
-                  }
-                />
-              </label>
-              <label className="settings-row">
-                <span>
-                  <strong>Reduced Motion</strong>
-                  <small>Reduce transitions and animated effects.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={accessibilityState.reducedMotionMode}
-                  onChange={(event) =>
-                    setAccessibilityState((prev) => ({
-                      ...prev,
-                      reducedMotionMode: event.target.checked,
-                    }))
-                  }
-                />
-              </label>
-              <label className="settings-row">
-                <span>
-                  <strong>Larger HUD Text</strong>
-                  <small>Scale up command/UI typography.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={accessibilityState.largeTextMode}
-                  onChange={(event) =>
-                    setAccessibilityState((prev) => ({
-                      ...prev,
-                      largeTextMode: event.target.checked,
-                    }))
-                  }
-                />
-              </label>
-              <label className="settings-row">
-                <span>
-                  <strong>Color Assist Palette</strong>
-                  <small>Use a color-safe high-separation palette.</small>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={accessibilityState.colorAssistMode}
-                  onChange={(event) =>
-                    setAccessibilityState((prev) => ({
-                      ...prev,
-                      colorAssistMode: event.target.checked,
-                    }))
-                  }
-                />
-              </label>
-              <div className="settings-row settings-row--actions">
-                <span>
-                  <strong>Save Recovery</strong>
-                  <small>Restore this slot from the latest auto-backup snapshot.</small>
-                </span>
-                <button className="cmd-btn cmd-btn--primary" onClick={handleRecoverFromBackup}>
-                  Recover Backup
-                </button>
+              <div className="settings-section">
+                <div className="settings-section__header">
+                  <p className="eyebrow">Interface</p>
+                  <p className="settings-section__hint">HUD and window behavior</p>
+                </div>
+                <label className="settings-row">
+                  <span>
+                    <strong>Show Next Steps</strong>
+                    <small>Toggle the Recommended Action panel.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={showNextSteps}
+                    onChange={(event) => setShowNextSteps(event.target.checked)}
+                  />
+                </label>
+                <label className="settings-row">
+                  <span>
+                    <strong>Remember Window Positions</strong>
+                    <small>Save menu/window positions and minimized state.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={rememberWindowPositions}
+                    onChange={(event) => setRememberWindowPositions(event.target.checked)}
+                  />
+                </label>
               </div>
-              <div className="settings-row settings-row--actions">
-                <span>
-                  <strong>Save Export</strong>
-                  <small>Download this slot as a JSON backup file.</small>
-                </span>
-                <button className="cmd-btn" onClick={handleExportSave}>
-                  Export Save
-                </button>
+
+              <div className="settings-section">
+                <div className="settings-section__header">
+                  <p className="eyebrow">Accessibility</p>
+                  <p className="settings-section__hint">Readability and motion controls</p>
+                </div>
+                <label className="settings-row">
+                  <span>
+                    <strong>High Contrast</strong>
+                    <small>Increase foreground/background separation.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={accessibilityState.highContrastMode}
+                    onChange={(event) =>
+                      setAccessibilityState((prev) => ({
+                        ...prev,
+                        highContrastMode: event.target.checked,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="settings-row">
+                  <span>
+                    <strong>Reduced Motion</strong>
+                    <small>Reduce transitions and animated effects.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={accessibilityState.reducedMotionMode}
+                    onChange={(event) =>
+                      setAccessibilityState((prev) => ({
+                        ...prev,
+                        reducedMotionMode: event.target.checked,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="settings-row">
+                  <span>
+                    <strong>Larger HUD Text</strong>
+                    <small>Scale up command/UI typography.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={accessibilityState.largeTextMode}
+                    onChange={(event) =>
+                      setAccessibilityState((prev) => ({
+                        ...prev,
+                        largeTextMode: event.target.checked,
+                      }))
+                    }
+                  />
+                </label>
+                <label className="settings-row">
+                  <span>
+                    <strong>Color Assist Palette</strong>
+                    <small>Use a color-safe high-separation palette.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={accessibilityState.colorAssistMode}
+                    onChange={(event) =>
+                      setAccessibilityState((prev) => ({
+                        ...prev,
+                        colorAssistMode: event.target.checked,
+                      }))
+                    }
+                  />
+                </label>
               </div>
-              <div className="settings-row settings-row--actions">
-                <span>
-                  <strong>Save Import</strong>
-                  <small>Import a JSON backup into the active slot.</small>
-                </span>
-                <button className="cmd-btn" onClick={handleStartImportSave}>
-                  Import Save
-                </button>
+
+              <div className="settings-section">
+                <div className="settings-section__header">
+                  <p className="eyebrow">Gameplay</p>
+                  <p className="settings-section__hint">Pacing and challenge</p>
+                </div>
+                <div className="settings-row">
+                  <span>
+                    <strong>Challenge Preset</strong>
+                    <small>Adjust incident pace, rewards, and failure penalties.</small>
+                  </span>
+                  <select
+                    className="cmd-select"
+                    value={tuningPresetId}
+                    onChange={(event) => setTuningPresetId(event.target.value)}
+                  >
+                    {Object.entries(TUNING_PRESETS).map(([id, preset]) => (
+                      <option key={id} value={id}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="settings-row settings-row--actions">
-                <span>
-                  <strong>Playtest Report</strong>
-                  <small>Open diagnostics + bug report packager.</small>
-                </span>
-                <button className="cmd-btn" onClick={() => setShowBugReporter(true)}>
-                  Open Reporter
-                </button>
+
+              <div className="settings-section">
+                <div className="settings-section__header">
+                  <p className="eyebrow">Operations</p>
+                  <p className="settings-section__hint">Save tools and admin panels</p>
+                </div>
+                <div className="settings-row settings-row--action-inline">
+                  <span>
+                    <strong>Save Recovery</strong>
+                    <small>Restore this slot from the latest auto-backup snapshot.</small>
+                  </span>
+                  <button className="cmd-btn cmd-btn--primary" onClick={handleRecoverFromBackup}>
+                    Recover
+                  </button>
+                </div>
+                <div className="settings-row settings-row--action-inline">
+                  <span>
+                    <strong>Save Export</strong>
+                    <small>Download this slot as a JSON backup file.</small>
+                  </span>
+                  <button className="cmd-btn" onClick={handleExportSave}>
+                    Export
+                  </button>
+                </div>
+                <div className="settings-row settings-row--action-inline">
+                  <span>
+                    <strong>Save Import</strong>
+                    <small>Import a JSON backup into the active slot.</small>
+                  </span>
+                  <button className="cmd-btn" onClick={handleStartImportSave}>
+                    Import
+                  </button>
+                </div>
+                <div className="settings-row settings-row--action-inline">
+                  <span>
+                    <strong>Playtest Report</strong>
+                    <small>Open diagnostics and the bug report packager.</small>
+                  </span>
+                  <button className="cmd-btn" onClick={() => setShowBugReporter(true)}>
+                    Reporter
+                  </button>
+                </div>
+                <div className="settings-row settings-row--action-inline">
+                  <span>
+                    <strong>Campaign Ops</strong>
+                    <small>Review district unlocks and milestone rewards.</small>
+                  </span>
+                  <button className="cmd-btn" onClick={() => setShowCampaign(true)}>
+                    Campaign
+                  </button>
+                </div>
               </div>
-              <div className="settings-row settings-row--actions">
-                <span>
-                  <strong>Campaign Ops</strong>
-                  <small>Review district unlocks and milestone rewards.</small>
-                </span>
-                <button className="cmd-btn" onClick={() => setShowCampaign(true)}>
-                  Open Campaign
-                </button>
-              </div>
+
               <p className="muted settings-note">
-                More game settings can be added here over time.
+                Compact layout optimized for quick access. Use window reset if a saved position feels off.
               </p>
             </div>
           </Window>
@@ -5883,6 +6107,7 @@ function App() {
           <Window
             id="station"
             title={`COMMAND: ${activeStation.name.toUpperCase()}`}
+            className={`window-wrapper--dept-${getDepartmentId(activeStation.department)}`}
             initialPos={{ x: window.innerWidth / 2 - 400, y: 100 }}
             initialSize={{ width: 800, height: 650 }}
             onClose={() => setShowStation(false)}
@@ -5942,6 +6167,7 @@ function App() {
           <Window
             id="prison"
             title={`FACILITY: ${activePrison.name.toUpperCase()}`}
+            className="window-wrapper--dept-police"
             initialPos={{ x: window.innerWidth / 2 - 250, y: 150 }}
             initialSize={{ width: 500, height: 400 }}
             onClose={() => setShowPrison(false)}
@@ -6207,7 +6433,7 @@ function App() {
               <circle cx="13" cy="13" r="1" />
               <circle cx="17" cy="8" r="1" />
             </svg>
-            <span className="taskbar-item__tooltip">INTEL</span>
+            <span className="taskbar-item__tooltip">OBJECTIVES</span>
           </button>
 
           <button

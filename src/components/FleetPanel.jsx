@@ -49,7 +49,23 @@ const FleetPanel = ({
                 : Math.max(0, Math.min(1, (xp - prevLevelXp) / (nextLevelXp - prevLevelXp)))
 
             return (
-              <div key={vehicle.id} className="incident-card" style={{ borderLeftColor: `var(--color-${department})` }}>
+              <div
+                key={vehicle.id}
+                className={`incident-card incident-card--dept-${department}`}
+                style={{
+                  borderLeftColor: `var(--color-${department})`,
+                  '--incident-accent-rgb':
+                    department === 'fire'
+                      ? '255, 122, 101'
+                      : department === 'ems'
+                        ? '255, 214, 74'
+                        : department === 'tow'
+                          ? '230, 184, 91'
+                          : department === 'public_works'
+                            ? '160, 174, 192'
+                            : '96, 171, 255',
+                }}
+              >
                 <div className="fleet-row" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
                   <span
                     className={`fleet-avatar fleet-avatar--${unitType} fleet-avatar--department-${department}`}

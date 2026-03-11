@@ -42,10 +42,25 @@ const writeWindowLayout = (id, layout) => {
   }
 }
 
+const fitWindowPosition = (pos, size, isMinimized = false) => {
+  if (typeof window === 'undefined') return pos
+
+  const nextWidth = isMinimized ? 240 : Math.max(200, size?.width || 400)
+  const nextHeight = isMinimized ? 40 : Math.max(120, size?.height || 500)
+  const maxX = Math.max(0, window.innerWidth - nextWidth)
+  const maxY = Math.max(0, window.innerHeight - nextHeight)
+
+  return {
+    x: Math.max(0, Math.min(pos?.x ?? 0, maxX)),
+    y: Math.max(0, Math.min(pos?.y ?? 0, maxY)),
+  }
+}
+
 const Window = ({ 
   id, 
   title, 
   children, 
+  className = '',
   initialPos = { x: 100, y: 100 }, 
   initialSize = { width: 400, height: 500 },
   onClose,
@@ -54,13 +69,20 @@ const Window = ({
 }) => {
   // Store position in pixels for stable dragging
   const initialLayout = readWindowLayout(id)
-  const [pos, setPos] = useState(initialLayout?.pos || initialPos)
-  const [size, setSize] = useState(initialLayout?.size || initialSize)
-  const [isMinimized, setIsMinimized] = useState(
+  const resolvedInitialSize = initialLayout?.size || initialSize
+  const resolvedInitialMinimized =
     typeof initialLayout?.isMinimized === 'boolean'
       ? initialLayout.isMinimized
       : initialMinimized
+  const [pos, setPos] = useState(() =>
+    fitWindowPosition(
+      initialLayout?.pos || initialPos,
+      resolvedInitialSize,
+      resolvedInitialMinimized
+    )
   )
+  const [size, setSize] = useState(resolvedInitialSize)
+  const [isMinimized, setIsMinimized] = useState(resolvedInitialMinimized)
   const [isDragging, setIsDragging] = useState(false)
   const [zIndex, setZIndex] = useState(() => nextWindowZ())
   
@@ -78,12 +100,16 @@ const Window = ({
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const persistedLayout = readWindowLayout(id)
-      const nextPos = persistedLayout?.pos || initialPosRef.current
       const nextSize = persistedLayout?.size || initialSizeRef.current
       const nextMinimized =
         typeof persistedLayout?.isMinimized === 'boolean'
           ? persistedLayout.isMinimized
           : initialMinimized
+      const nextPos = fitWindowPosition(
+        persistedLayout?.pos || initialPosRef.current,
+        nextSize,
+        nextMinimized
+      )
       setPos((prev) =>
         prev.x === nextPos.x && prev.y === nextPos.y ? prev : nextPos
       )
@@ -155,18 +181,15 @@ const Window = ({
       height: Math.max(120, initialSize?.height || 500),
     }
     setSize(nextSize)
-    setPos((prev) => ({
-      x: Math.max(0, Math.min(prev.x, window.innerWidth - nextSize.width)),
-      y: Math.max(0, Math.min(prev.y, window.innerHeight - 40)),
-    }))
-  }, [initialSize])
+    setPos((prev) => fitWindowPosition(prev, nextSize, isMinimized))
+  }, [initialSize, isMinimized])
 
   const handleResetPosition = useCallback(() => {
-    const nextWidth = isMinimized ? 240 : Math.max(200, size.width || initialSize?.width || 400)
-    const nextX = Math.max(0, Math.min(initialPos?.x || 100, window.innerWidth - nextWidth))
-    const nextY = Math.max(0, Math.min(initialPos?.y || 100, window.innerHeight - 40))
-    setPos({ x: nextX, y: nextY })
-  }, [initialPos, initialSize, isMinimized, size.width])
+    const nextSize = isMinimized
+      ? { width: 240, height: 40 }
+      : { width: size.width || initialSize?.width || 400, height: size.height || initialSize?.height || 500 }
+    setPos(fitWindowPosition(initialPos || { x: 100, y: 100 }, nextSize, isMinimized))
+  }, [initialPos, initialSize, isMinimized, size.height, size.width])
 
   const handleWrapperMouseDownCapture = useCallback((e) => {
     bringToFront()
@@ -230,19 +253,16 @@ const Window = ({
   // Handle window resize to keep windows on screen
   useEffect(() => {
     const handleResize = () => {
-      setPos(prev => ({
-        x: Math.min(prev.x, window.innerWidth - (isMinimized ? 240 : size.width)),
-        y: Math.min(prev.y, window.innerHeight - 40)
-      }))
+      setPos((prev) => fitWindowPosition(prev, size, isMinimized))
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [isMinimized, size.width])
+  }, [isMinimized, size])
 
   return (
     <div 
       ref={wrapperRef}
-      className="window-wrapper cmd-panel"
+      className={`window-wrapper cmd-panel ${className}`.trim()}
       onMouseDownCapture={handleWrapperMouseDownCapture}
       style={{
         left: `${pos.x}px`,

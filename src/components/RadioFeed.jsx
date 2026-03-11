@@ -10,6 +10,17 @@ const RADIO_CHANNEL_FILTERS = [
   { value: 'SYSTEM', label: 'SYS', tone: 'system' },
 ]
 
+const getRadioTone = (channel) => {
+  const normalized = String(channel || '').toUpperCase()
+  if (normalized === 'PD') return 'pd'
+  if (normalized === 'FD' || normalized === 'FIRE' || normalized === 'ALARM') return 'fd'
+  if (normalized === 'EMS') return 'ems'
+  if (normalized === 'TOW') return 'tow'
+  if (normalized === 'DISPATCH') return 'dispatch'
+  if (normalized === 'SYSTEM') return 'system'
+  return 'all'
+}
+
 const RadioFeed = ({ logs, onIncidentSelect }) => {
   const endRef = useRef(null)
   const [channelFilter, setChannelFilter] = useState('ALL')
@@ -53,30 +64,37 @@ const RadioFeed = ({ logs, onIncidentSelect }) => {
             {logs.length === 0 ? 'No traffic.' : `No traffic for ${channelFilter}.`}
           </div>
         )}
-        {filteredLogs.map((log) => (
-          <div key={log.id} className={`radio-entry radio-entry--${log.type}`}>
-            {log.avatar && (
-              <div className="avatar avatar--officer radio-entry__avatar">
-                <img src={log.avatar} alt="Unit" />
-              </div>
-            )}
-            <span className="radio-entry__time">{log.time}</span>
-            <span className="radio-entry__channel">{log.channel}</span>
-            <span className="radio-entry__msg">
-              {log.incidentId != null && (
-                <button
-                  type="button"
-                  className="radio-incident-tag"
-                  title={log.incidentAddress || 'Incident linked'}
-                  onClick={() => onIncidentSelect?.(log.incidentId)}
-                >
-                  INC #{log.incidentId}
-                </button>
+        {filteredLogs.map((log) => {
+          const tone = getRadioTone(log.channel)
+
+          return (
+            <div
+              key={log.id}
+              className={`radio-entry radio-entry--${log.type} radio-entry--tone-${tone}`}
+            >
+              {log.avatar && (
+                <div className="avatar avatar--officer radio-entry__avatar">
+                  <img src={log.avatar} alt="Unit" />
+                </div>
               )}
-              <span className="radio-code">{log.code}</span> {log.message}
-            </span>
-          </div>
-        ))}
+              <span className="radio-entry__time">{log.time}</span>
+              <span className={`radio-entry__channel radio-entry__channel--${tone}`}>{log.channel}</span>
+              <span className="radio-entry__msg">
+                {log.incidentId != null && (
+                  <button
+                    type="button"
+                    className={`radio-incident-tag radio-incident-tag--${tone}`}
+                    title={log.incidentAddress || 'Incident linked'}
+                    onClick={() => onIncidentSelect?.(log.incidentId)}
+                  >
+                    INC #{log.incidentId}
+                  </button>
+                )}
+                <span className={`radio-code radio-code--${tone}`}>{log.code}</span> {log.message}
+              </span>
+            </div>
+          )
+        })}
         <div ref={endRef} />
       </div>
     </div>

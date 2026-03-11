@@ -13,7 +13,7 @@ const RegionalTicker = ({
       `REGIONAL NEWS: Oromocto Public Trust currently at ${trust}%`,
       `WEATHER: Low visibility reported near the Saint John River. All units use caution.`,
       `POLITICS: Mayor praises regional dispatch for resolving ${resolvedCount} total incidents.`,
-      `ALERT: Regional Hospital reporting 100% capacity in Emergency Department.`,
+      `ALERT: EMS intake teams report treatment bays running near surge load.`,
     ]
     
     if (trust < 40) msgs.push("OPINION: Citizens concerned over slow emergency response times. #OromoctoAlert")

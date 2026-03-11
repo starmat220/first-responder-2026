@@ -948,6 +948,7 @@ export const useIncidentSpawner = ({
       dispatchedAt: null,
       arrivedAt: null,
       responseSeconds: null,
+      responseTargetSeconds,
       timeRemaining: responseTargetSeconds,
       stage: stagePlan ? 1 : 1,
       stageLabel: stagePlan?.stageLabel || null,
@@ -989,7 +990,7 @@ export const useIncidentSpawner = ({
     if (!stationsRef.current || stationsRef.current.length === 0) return
     let timeoutId
     let cancelled = false
-    const scheduleNext = () => {
+    const scheduleNext = (lastSpawnSucceeded = true) => {
       if (cancelled) return
       const unitPool = vehiclesRef.current || []
       const activeUnits = unitPool.filter(
@@ -1014,15 +1015,18 @@ export const useIncidentSpawner = ({
           : resolvedCount < EARLY_PHASE_RESOLVED_LIMIT
             ? 1.3
             : 1
+      const failureRetryMs = 4500
       timeoutId = setTimeout(
         tick,
-        Math.max(
-          8000,
-          Math.round(intervalMs * weatherIntervalMultiplier * progressionIntervalMultiplier)
-        )
+        lastSpawnSucceeded
+          ? Math.max(
+            8000,
+            Math.round(intervalMs * weatherIntervalMultiplier * progressionIntervalMultiplier)
+          )
+          : failureRetryMs
       )
     }
-    const tick = () => {
+    const tick = async () => {
       if (cancelled) return
       const activeCount = incidentsRef.current.filter(
         (item) =>
@@ -1042,10 +1046,16 @@ export const useIncidentSpawner = ({
       const dynamicCap = clamp(baseCap + trustBonus + maxActiveBias, 1, 10)
       const maxActive = Math.min(dynamicCap, progressionCap)
 
+      let spawnSucceeded = true
       if (activeCount < maxActive) {
-        createIncident()
+        try {
+          spawnSucceeded = await createIncident()
+        } catch (error) {
+          console.warn('Scheduled incident spawn failed.', error)
+          spawnSucceeded = false
+        }
       }
-      scheduleNext()
+      scheduleNext(spawnSucceeded)
     }
 
     scheduleNext()
@@ -1075,7 +1085,9 @@ export const useIncidentSpawner = ({
     seededRef.current = true
     const timeout = setTimeout(() => {
       if (!incidents.length) {
-        createIncident()
+        createIncident().catch((error) => {
+          console.warn('Initial incident seed failed.', error)
+        })
       }
     }, 1500)
     return () => clearTimeout(timeout)

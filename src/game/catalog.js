@@ -191,8 +191,8 @@ export const BUILDING_CATALOG = [
   { id: STATION_TYPES.ems_station.id, label: 'Ambulance Station', department: 'ems', category: 'station' },
   { id: STATION_TYPES.ems_station_small.id, label: 'Small Ambulance Station', department: 'ems', category: 'station' },
   { id: STATION_TYPES.ems_academy.id, label: 'EMS Academy', department: 'ems', category: 'training' },
-  { id: STATION_TYPES.hospital.id, label: 'Hospital', department: 'ems', category: 'medical' },
-  { id: STATION_TYPES.clinic.id, label: 'Clinic', department: 'ems', category: 'medical' },
+  { id: STATION_TYPES.hospital.id, label: 'Hospital', department: 'ems', category: 'medical_hub' },
+  { id: STATION_TYPES.clinic.id, label: 'Clinic', department: 'ems', category: 'medical_outpost' },
   { id: STATION_TYPES.med_helicopter.id, label: 'Med Helicopter Station', department: 'ems', category: 'aviation' },
 
   // Coastal

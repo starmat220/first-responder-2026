@@ -19,8 +19,8 @@ const Topbar = ({
   playerCallsign,
   playerTitle,
   playerAvatar,
-  missionDayKey,
   weatherSummary,
+  weatherConditionLabel,
   weatherTemperatureLabel,
   weatherNextUpdateLabel,
   weatherLocationLabel,
@@ -39,13 +39,14 @@ const Topbar = ({
     second: '2-digit',
   })
   const weatherLabel = weatherSummary || 'Clear 20C'
+  const weatherCondition = weatherConditionLabel || 'Clear'
   const weatherTempLabel = weatherTemperatureLabel || weatherLabel
+  const weatherDisplayLabel = `${weatherCondition} · ${weatherTempLabel}`
   const weatherEtaLabel = weatherNextUpdateLabel || '--:--'
   const weatherAreaLabel = weatherLocationLabel || 'Local'
   const weatherClockLabel = weatherLocalTimeLabel
     ? `${weatherLocalTimeLabel}${weatherTimezoneLabel ? ` ${weatherTimezoneLabel}` : ''}`
     : '--:--'
-  const dayLabel = missionDayKey || 'DAY-01'
   const phaseLabel = operationsPhase || 'BASIC OPS'
   const liveEventLabel = liveEventStatusLabel || 'No active regional event'
   const liveEventIsActive =
@@ -85,7 +86,7 @@ const Topbar = ({
             className="value"
             title={`${weatherLabel} · ${weatherClockLabel} · NX ${weatherEtaLabel}`}
           >
-            {weatherTempLabel}
+            {weatherDisplayLabel}
           </span>
         </div>
       </div>

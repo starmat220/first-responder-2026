@@ -7,6 +7,8 @@ import {
   INCIDENT_STATUS,
   JAIL_START_CAPACITY,
   ON_SCENE_SECONDS,
+  PATIENT_LOG_LIMIT,
+  PATIENT_TREATMENT_SECONDS,
   SHIFT_SECONDS,
   VEHICLE_STATUS,
   ESCALATION_CHANCE_PER_TICK,
@@ -14,8 +16,6 @@ import {
   UNIT_LEVEL_CAP,
   RADIO_CODES,
   SKILL_TYPES,
-  HOSPITAL_POS,
-  IMPOUND_POS,
   CHAINED_EVENTS,
 } from '../game/constants'
 import { applyUpkeepTick } from '../game/economy'
@@ -34,6 +34,7 @@ import {
 import { getTravelSpeedKph } from '../game/speed'
 import { getStationMinOnDuty, isStationOnDuty } from '../game/staffing'
 import { clamp } from '../game/utils'
+import { DEPARTMENTS, isHospitalStationType } from '../game/departments'
 
 /* eslint-disable react-hooks/exhaustive-deps */
 export const useGameSimulation = ({
@@ -108,6 +109,53 @@ export const useGameSimulation = ({
     return false
   }
 
+  const shouldPreserveExternalIncidentDispatch = (latestIncident, simIncident) => {
+    if (!latestIncident || !simIncident) return false
+
+    const latestAssigned = Array.isArray(latestIncident.assignedVehicleIds)
+      ? latestIncident.assignedVehicleIds
+      : []
+    const simAssigned = Array.isArray(simIncident.assignedVehicleIds)
+      ? simIncident.assignedVehicleIds
+      : []
+
+    return (
+      latestIncident.status === INCIDENT_STATUS.responding &&
+      simIncident.status === INCIDENT_STATUS.open &&
+      (latestAssigned.length > simAssigned.length || latestIncident.dispatchedAt != null)
+    )
+  }
+
+  const mergeIncidentCommits = (latestIncidents, simIncidents) => {
+    const simById = new Map(simIncidents.map((incident) => [incident.id, incident]))
+
+    const merged = latestIncidents.map((latestIncident) => {
+      const simIncident = simById.get(latestIncident.id)
+      if (!simIncident) {
+        return latestIncident
+      }
+
+      simById.delete(latestIncident.id)
+
+      if (shouldPreserveExternalIncidentDispatch(latestIncident, simIncident)) {
+        return {
+          ...simIncident,
+          status: latestIncident.status,
+          assignedVehicleId: latestIncident.assignedVehicleId,
+          assignedVehicleIds: Array.isArray(latestIncident.assignedVehicleIds)
+            ? latestIncident.assignedVehicleIds
+            : simIncident.assignedVehicleIds,
+          dispatchedAt: latestIncident.dispatchedAt || simIncident.dispatchedAt,
+          etaSeconds: latestIncident.etaSeconds || simIncident.etaSeconds,
+        }
+      }
+
+      return simIncident
+    })
+
+    return [...merged, ...simById.values()]
+  }
+
   const getCrewSkillValue = (member, skillKey) =>
     Number(member?.skills?.[skillKey] ?? member?.stats?.[skillKey] ?? 1)
 
@@ -131,6 +179,70 @@ export const useGameSimulation = ({
     let lastTime = 0
     let accumulator = 0
     const stepSeconds = 1 / 30
+
+    const getStationPatientCount = (station, pendingUpdate = null) => {
+      const baseCount = Array.isArray(station?.activePatients)
+        ? station.activePatients.length
+        : Math.max(0, Number(station?.patientCount) || 0)
+      return baseCount + (pendingUpdate?.patientAdmissions?.length || 0)
+    }
+
+    const getMedicalDestinationForVehicle = (vehicle, stations, stationUpdates = new Map()) => {
+      const medicalStations = stations.filter(
+        (station) =>
+          (station.department || DEPARTMENTS.police.id) === DEPARTMENTS.ems.id &&
+          (station.patientCapacity || 0) > 0
+      )
+      if (!medicalStations.length) return null
+
+      const withCapacity = medicalStations.filter((station) => {
+        const pendingUpdate = stationUpdates.get(station.id)
+        return getStationPatientCount(station, pendingUpdate) < (station.patientCapacity || 0)
+      })
+
+      const hospitalWithCapacity = withCapacity.find((station) =>
+        isHospitalStationType(station.stationType)
+      )
+      if (hospitalWithCapacity) return hospitalWithCapacity
+
+      const homeStationWithCapacity = withCapacity.find(
+        (station) => station.id === vehicle.homeStationId
+      )
+      if (homeStationWithCapacity) return homeStationWithCapacity
+
+      if (withCapacity.length > 0) return withCapacity[0]
+
+      return (
+        medicalStations.find((station) => station.id === vehicle.homeStationId) ||
+        medicalStations.find((station) => isHospitalStationType(station.stationType)) ||
+        medicalStations[0]
+      )
+    }
+
+    const getStationImpoundCount = (station, pendingUpdate = null) => {
+      const baseCount = Math.max(0, Number(station?.impoundCount) || 0)
+      return baseCount + (pendingUpdate?.impoundAdmissions?.length || 0)
+    }
+
+    const getTowDestinationForVehicle = (vehicle, stations, stationUpdates = new Map()) => {
+      const towStations = stations.filter(
+        (station) =>
+          (station.department || DEPARTMENTS.police.id) === DEPARTMENTS.tow.id &&
+          (station.impoundCapacity || 0) > 0
+      )
+      if (!towStations.length) return null
+
+      const withCapacity = towStations.filter((station) => {
+        const pendingUpdate = stationUpdates.get(station.id)
+        return getStationImpoundCount(station, pendingUpdate) < (station.impoundCapacity || 0)
+      })
+
+      const homeTowStation = withCapacity.find((station) => station.id === vehicle.homeStationId)
+      if (homeTowStation) return homeTowStation
+      if (withCapacity.length > 0) return withCapacity[0]
+
+      return towStations.find((station) => station.id === vehicle.homeStationId) || towStations[0]
+    }
 
     const tick = (nowTs) => {
       if (!lastTime) lastTime = nowTs
@@ -170,6 +282,44 @@ export const useGameSimulation = ({
         let trustDeltaStep = 0
         const stationUpdates = new Map()
         const prisonUpdates = new Map()
+        const stepNow = Date.now()
+
+        currentStations = currentStations.map((station) => {
+          const activePatients = Array.isArray(station.activePatients) ? station.activePatients : []
+          if (!activePatients.length) {
+            if ((station.patientCount || 0) === 0) return station
+            return { ...station, patientCount: 0 }
+          }
+
+          const remainingPatients = []
+          const releasedEntries = []
+          activePatients.forEach((patient) => {
+            if ((patient.releaseAt || 0) <= stepNow) {
+              releasedEntries.push({
+                id: `patient-release-${station.id}-${patient.id}`,
+                type: patient.type || 'Medical intake',
+                destination: 'discharged',
+                time: new Date(stepNow).toLocaleTimeString(),
+              })
+              return
+            }
+            remainingPatients.push(patient)
+          })
+
+          if (
+            remainingPatients.length === activePatients.length &&
+            (station.patientCount || 0) === remainingPatients.length
+          ) {
+            return station
+          }
+
+          return {
+            ...station,
+            activePatients: remainingPatients,
+            patientCount: remainingPatients.length,
+            patientLog: [...(station.patientLog || []), ...releasedEntries].slice(-PATIENT_LOG_LIMIT),
+          }
+        })
 
         const scheduleTime = new Date()
         const stationDutyMap = new Map(
@@ -465,10 +615,61 @@ export const useGameSimulation = ({
                         time: new Date().toLocaleTimeString(),
                       })
                       prisonUpdates.set(vehicle.returnDestinationId, existing)
+                    } else if (vehicle.returnDestinationType === 'medical') {
+                      const existing = stationUpdates.get(vehicle.returnDestinationId) || {
+                        jailDelta: 0,
+                        logEntries: [],
+                        patientAdmissions: [],
+                        patientLogEntries: [],
+                        impoundAdmissions: [],
+                        impoundLogEntries: [],
+                      }
+                      const admittedAt = Date.now()
+                      existing.patientAdmissions.push({
+                        id: `patient-${vehicle.id}-${admittedAt}`,
+                        type: vehicle.returnIncidentType || 'Medical intake',
+                        admittedAt,
+                        releaseAt: admittedAt + PATIENT_TREATMENT_SECONDS * 1000,
+                        source: 'ems_transport',
+                      })
+                      existing.patientLogEntries.push({
+                        id: `patient-log-${vehicle.id}-${admittedAt}`,
+                        type: vehicle.returnIncidentType || 'Medical intake',
+                        destination: 'treatment',
+                        time: new Date(admittedAt).toLocaleTimeString(),
+                      })
+                      stationUpdates.set(vehicle.returnDestinationId, existing)
+                    } else if (vehicle.returnDestinationType === 'tow_yard') {
+                      const existing = stationUpdates.get(vehicle.returnDestinationId) || {
+                        jailDelta: 0,
+                        logEntries: [],
+                        patientAdmissions: [],
+                        patientLogEntries: [],
+                        impoundAdmissions: [],
+                        impoundLogEntries: [],
+                      }
+                      const impoundedAt = Date.now()
+                      existing.impoundAdmissions.push({
+                        id: `impound-${vehicle.id}-${impoundedAt}`,
+                        type: vehicle.returnIncidentType || 'Recovered vehicle',
+                        impoundedAt,
+                        source: 'tow_recovery',
+                      })
+                      existing.impoundLogEntries.push({
+                        id: `impound-log-${vehicle.id}-${impoundedAt}`,
+                        type: vehicle.returnIncidentType || 'Recovered vehicle',
+                        destination: 'impound',
+                        time: new Date(impoundedAt).toLocaleTimeString(),
+                      })
+                      stationUpdates.set(vehicle.returnDestinationId, existing)
                     } else {
                       const existing = stationUpdates.get(vehicle.returnDestinationId) || {
                         jailDelta: 0,
                         logEntries: [],
+                        patientAdmissions: [],
+                        patientLogEntries: [],
+                        impoundAdmissions: [],
+                        impoundLogEntries: [],
                       }
                       existing.jailDelta += 1
                       existing.logEntries.push({
@@ -517,12 +718,31 @@ export const useGameSimulation = ({
             }
 
             if (vehicle.status === VEHICLE_STATUS.on_scene) {
-              if (!incident || incident.status !== INCIDENT_STATUS.on_scene) {
+              const incidentOnSceneVehicleIds = Array.isArray(incident?.onSceneVehicleIds)
+                ? incident.onSceneVehicleIds
+                : []
+              const isStagedOnScene =
+                incident?.status === INCIDENT_STATUS.responding &&
+                incidentOnSceneVehicleIds.includes(vehicle.id)
+
+              if (!incident || (incident.status !== INCIDENT_STATUS.on_scene && !isStagedOnScene)) {
                 return {
                   ...vehicle,
                   fatigue: nextFatigue,
                   shiftRemaining: nextShift,
                   currentSpeedKph: 0,
+                }
+              }
+              if (isStagedOnScene) {
+                return {
+                  ...vehicle,
+                  fatigue: nextFatigue,
+                  shiftRemaining: nextShift,
+                  currentSpeedKph: 0,
+                  onSceneRemaining:
+                    Number(incident.onSceneRemaining) ||
+                    Number(vehicle.onSceneRemaining) ||
+                    ON_SCENE_SECONDS,
                 }
               }
               if (incident.awaitingFollowUp) {
@@ -532,6 +752,21 @@ export const useGameSimulation = ({
                   shiftRemaining: nextShift,
                   currentSpeedKph: 0,
                   onSceneRemaining: 0,
+                }
+              }
+
+              const leadOnSceneVehicleId =
+                incidentOnSceneVehicleIds[0] || incident.assignedVehicleId || null
+              if (leadOnSceneVehicleId != null && vehicle.id !== leadOnSceneVehicleId) {
+                return {
+                  ...vehicle,
+                  fatigue: nextFatigue,
+                  shiftRemaining: nextShift,
+                  currentSpeedKph: 0,
+                  onSceneRemaining:
+                    Number(incident.onSceneRemaining) ||
+                    Number(vehicle.onSceneRemaining) ||
+                    ON_SCENE_SECONDS,
                 }
               }
 
@@ -866,11 +1101,35 @@ export const useGameSimulation = ({
                 let returnDestinationId = null
 
                 if (dept === 'ems') {
-                  returnDestinationType = 'hospital'
-                  addRadioLogRef.current?.(`Unit ${vehicle.name} 10-17 Transporting to Regional Hospital.`, 'info', 'EMS', '10-17', vehicle.id)
+                  const medicalDestination = getMedicalDestinationForVehicle(
+                    vehicle,
+                    currentStations,
+                    stationUpdates
+                  )
+                  returnDestinationType = 'medical'
+                  returnDestinationId = medicalDestination?.id || vehicle.homeStationId
+                  addRadioLogRef.current?.(
+                    `Unit ${vehicle.name} 10-17 Transporting patient to ${medicalDestination?.name || 'EMS intake'}.`,
+                    'info',
+                    'EMS',
+                    '10-17',
+                    vehicle.id
+                  )
                 } else if (dept === 'tow') {
-                  returnDestinationType = 'impound'
-                  addRadioLogRef.current?.(`Unit ${vehicle.name} 10-19 Towing to Regional Impound.`, 'info', 'TOW', '10-19', vehicle.id)
+                  const towDestination = getTowDestinationForVehicle(
+                    vehicle,
+                    currentStations,
+                    stationUpdates
+                  )
+                  returnDestinationType = 'tow_yard'
+                  returnDestinationId = towDestination?.id || vehicle.homeStationId
+                  addRadioLogRef.current?.(
+                    `Unit ${vehicle.name} 10-19 Towing to ${towDestination?.name || 'Tow Yard'}.`,
+                    'info',
+                    'TOW',
+                    '10-19',
+                    vehicle.id
+                  )
                 } else if (needsDetention || dept === 'police') {
                   returnDestinationType = 'station'
                   returnDestinationId = vehicle.homeStationId
@@ -1045,6 +1304,22 @@ export const useGameSimulation = ({
           currentStations = currentStations.map((station) => {
             const update = stationUpdates.get(station.id)
             if (!update) return station
+            const nextActivePatients = [
+              ...(Array.isArray(station.activePatients) ? station.activePatients : []),
+              ...(update.patientAdmissions || []),
+            ]
+            const nextImpounds = [
+              ...(Array.isArray(station.activeImpounds) ? station.activeImpounds : []),
+              ...(update.impoundAdmissions || []),
+            ]
+            const patientCapacity = Math.max(0, Number(station.patientCapacity) || 0)
+            const admittedPatients = patientCapacity > 0
+              ? nextActivePatients.slice(-patientCapacity)
+              : []
+            const impoundCapacity = Math.max(0, Number(station.impoundCapacity) || 0)
+            const admittedImpounds = impoundCapacity > 0
+              ? nextImpounds.slice(-impoundCapacity)
+              : []
             return {
               ...station,
               jailCount: Math.min(
@@ -1052,6 +1327,12 @@ export const useGameSimulation = ({
                 (station.jailCount || 0) + update.jailDelta
               ),
               detentionLog: [...(station.detentionLog || []), ...update.logEntries].slice(0, 50),
+              activePatients: admittedPatients,
+              patientCount: admittedPatients.length,
+              patientLog: [...(station.patientLog || []), ...(update.patientLogEntries || [])].slice(-PATIENT_LOG_LIMIT),
+              activeImpounds: admittedImpounds,
+              impoundCount: admittedImpounds.length,
+              impoundLog: [...(station.impoundLog || []), ...(update.impoundLogEntries || [])].slice(-PATIENT_LOG_LIMIT),
             }
           })
         }
@@ -1095,7 +1376,9 @@ export const useGameSimulation = ({
           })
         })
 
-        setIncidents(currentIncidents)
+        const mergedIncidents = mergeIncidentCommits(incidentsRef.current, currentIncidents)
+
+        setIncidents(mergedIncidents)
         setStations(currentStations)
         setPrisons(currentPrisons)
         setSpecialEvents(currentSpecials)
@@ -1111,7 +1394,7 @@ export const useGameSimulation = ({
           return simV
         })
         
-        incidentsRef.current = currentIncidents
+        incidentsRef.current = mergedIncidents
         stationsRef.current = currentStations
         prisonsRef.current = currentPrisons
         specialEventsRef.current = currentSpecials

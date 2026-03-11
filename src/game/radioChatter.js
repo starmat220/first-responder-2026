@@ -36,7 +36,7 @@ export const DEPT_CHATTER = {
   ],
   ems: [
     { message: "Medic 1 is 10-23. Patient is unresponsive, starting ACLS.", code: "10-23", channel: "EMS" },
-    { message: "Dispatch, we are 10-17 to Regional Hospital with one trauma.", code: "10-17", channel: "EMS" },
+    { message: "Dispatch, we are 10-17 with one patient, returning to medical intake.", code: "10-17", channel: "EMS" },
     { message: "Ambulance 5 is 10-7 for restocking and decontamination.", code: "10-7", channel: "EMS" },
     { message: "Patient 10-22. Cancel the ER notification.", code: "10-22", channel: "EMS" },
     { message: "Medic unit is clear from handoff, 10-8 for next assignment.", code: "10-8", channel: "EMS" },

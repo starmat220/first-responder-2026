@@ -39,7 +39,7 @@ const StaffRoster = ({
     <div className="list-container" style={{ padding: '8px' }}>
       {crewMembers.length === 0 && (
         <p className="muted" style={{ textAlign: 'center', padding: '40px' }}>
-          NO PERSONNEL ON ROSTER. HIRE STAFF IN THE OVERVIEW TAB.
+          NO PERSONNEL ON ROSTER. USE THE RECRUITMENT CENTER ABOVE TO ADD STAFF.
         </p>
       )}
 
