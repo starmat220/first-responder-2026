@@ -488,6 +488,7 @@ function App() {
   const [dispatchSelection, setDispatchSelection] = useState({})
   const [hasLoadedSave, setHasLoadedSave] = useState(false)
   const [showIncidents, setShowIncidents] = useState(true)
+  const [showBuildMenu, setShowBuildMenu] = useState(false)
   const [showStation, setShowStation] = useState(false)
   const [stationPanelTab, setStationPanelTab] = useState('overview')
   const [showWelcome, setShowWelcome] = useState(true)
@@ -776,13 +777,13 @@ function App() {
   )
   const rewardMultiplierRef = useLatestRef(
     tuningPreset.rewardMultiplier *
-      earlyOpsRewardMultiplier *
-      (balanceProfile.rewardMultiplier || 1)
+    earlyOpsRewardMultiplier *
+    (balanceProfile.rewardMultiplier || 1)
   )
   const missPenaltyMultiplierRef = useLatestRef(
     tuningPreset.missPenaltyMultiplier *
-      earlyOpsPenaltyMultiplier *
-      (balanceProfile.missPenaltyMultiplier || 1)
+    earlyOpsPenaltyMultiplier *
+    (balanceProfile.missPenaltyMultiplier || 1)
   )
   const trustGainBalanceMultiplier = balanceProfile.trustGainMultiplier || 1
   const trustLossBalanceMultiplier = balanceProfile.trustLossMultiplier || 1
@@ -1142,10 +1143,10 @@ function App() {
       300,
       Math.round(
         MUTUAL_AID_COST *
-          reputationCostMultiplier *
-          liveEventCostMultiplier *
-          balanceCostMultiplier *
-          commandCostMultiplier
+        reputationCostMultiplier *
+        liveEventCostMultiplier *
+        balanceCostMultiplier *
+        commandCostMultiplier
       )
     )
     if (money < aidCost) {
@@ -1696,53 +1697,53 @@ function App() {
     () =>
       makeMarkerIcon(
         'marker--station',
-        ICONS.station,
+        getCustomMarkerMarkup(['custom-station-police.png'], ICONS.station, 'police', true),
         getMarkerSize(30)
       ),
-    [getMarkerSize]
+    [getCustomMarkerMarkup, getMarkerSize]
   )
   const fireStationIcon = useMemo(
     () =>
       makeMarkerIcon(
         'marker--station marker--station-fire',
-        ICONS.fire_station,
-        getMarkerSize(24)
+        getCustomMarkerMarkup(['custom-station-fire.png'], ICONS.fire_station, 'fire', true),
+        getMarkerSize(30)
       ),
-    [getMarkerSize]
+    [getCustomMarkerMarkup, getMarkerSize]
   )
   const emsStationIcon = useMemo(
     () =>
       makeMarkerIcon(
         'marker--station marker--station-ems',
-        ICONS.ems_station,
-        getMarkerSize(24)
+        getCustomMarkerMarkup(['custom-station-ems.png'], ICONS.ems_station, 'ems', true),
+        getMarkerSize(30)
       ),
-    [getMarkerSize]
+    [getCustomMarkerMarkup, getMarkerSize]
   )
   const towYardIcon = useMemo(
     () =>
       makeMarkerIcon(
         'marker--station marker--station-tow',
-        ICONS.tow_yard,
-        getMarkerSize(24)
+        getCustomMarkerMarkup(['custom-station-tow.png'], ICONS.tow_yard, 'tow', true),
+        getMarkerSize(30)
       ),
-    [getMarkerSize]
+    [getCustomMarkerMarkup, getMarkerSize]
   )
   const pwDepotIcon = useMemo(
     () =>
       makeMarkerIcon(
         'marker--station marker--station-pw',
-        ICONS.logistics || ICONS.tow_yard,
-        getMarkerSize(24)
+        getCustomMarkerMarkup(['custom-station-pw.png'], ICONS.logistics || ICONS.tow_yard, 'public_works', true),
+        getMarkerSize(30)
       ),
-    [getMarkerSize]
+    [getCustomMarkerMarkup, getMarkerSize]
   )
   const prisonIcon = useMemo(
     () =>
       makeMarkerIcon(
         'marker--prison',
         getCustomMarkerMarkup(['station-prison.png'], ICONS.prison),
-        getMarkerSize(24)
+        getMarkerSize(30)
       ),
     [getCustomMarkerMarkup, getMarkerSize]
   )
@@ -1955,10 +1956,7 @@ function App() {
     if (hasDetainee) {
       badges.push(
         `<span class="marker__state marker__state--detainee" aria-hidden="true" title="Transporting detainee">
-          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-            <path d="M8.3 11.8a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6zm7.4 6a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6z" fill="none" stroke="currentColor" stroke-width="1.9"/>
-            <path d="M10.8 9.7l2.5 4.2m-1.4-1.1l-2.3 1.3m6.8-1.8l-2.4 1.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          D
         </span>`
       )
     }
@@ -3475,8 +3473,8 @@ function App() {
       45,
       Math.round(
         priorityConfig.responseTargetSeconds *
-          (districtMods?.responseTargetMultiplier || 1) *
-          (departmentMods?.responseTargetMultiplier || 1)
+        (districtMods?.responseTargetMultiplier || 1) *
+        (departmentMods?.responseTargetMultiplier || 1)
       )
     )
     const onSceneDurationSeconds = Math.max(
@@ -3761,7 +3759,9 @@ function App() {
       createdAt: now,
       expiresAt: now + SPECIAL_EVENT_TTL_SECONDS * 1000,
     }
-    setSpecialEvents((prev) => [newEvent, ...prev])
+    const nextEvents = [newEvent, ...(specialEventsRef.current || [])]
+    specialEventsRef.current = nextEvents
+    setSpecialEvents(nextEvents)
     showMessage('Special incident spotted.')
   }
 
@@ -3776,7 +3776,9 @@ function App() {
       priority: event.type.toLowerCase().includes('fleeing') ? 1 : 2,
       requiredUnits: event.type.toLowerCase().includes('stolen') ? 2 : 1,
     })
-    setSpecialEvents((prev) => prev.filter((item) => item.id !== eventId))
+    const nextEvents = specialEventsRef.current.filter((item) => item.id !== eventId)
+    specialEventsRef.current = nextEvents
+    setSpecialEvents(nextEvents)
     showMessage('Special incident dispatched.')
   }
   const getVehicleDispatchBonus = useCallback(
@@ -4689,6 +4691,45 @@ function App() {
       />
 
       <main className="map-shell">
+        {showBuildMenu && (
+          <Window
+            id="build-menu"
+            title="ASSET ACQUISITION"
+            initialPos={{ x: window.innerWidth / 2 - 150, y: window.innerHeight - 300 }}
+            initialSize={{ width: 300, height: 160 }}
+            onClose={() => setShowBuildMenu(false)}
+            resetKey={uiResetKey}
+          >
+            <div className="cmd-content" style={{ display: 'grid', gap: '8px' }}>
+              <label className="label" style={{ fontSize: '0.6rem' }}>SELECT FACILITY TYPE</label>
+              <select
+                className="cmd-select"
+                value={placingBuildingType || "police_station"}
+                onChange={(e) => setPlacingBuildingType(e.target.value)}
+              >
+                {buildOptions.map(b => (
+                  <option key={b.id} value={b.id} disabled={!b.enabled}>
+                    {b.enabled ? `${b.label} ($${b.cost})` : `${b.label} (LOCKED)`}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="cmd-btn cmd-btn--primary"
+                style={{ marginTop: '8px' }}
+                onClick={() => {
+                  if (!placingBuildingType) {
+                    setPlacingBuildingType("police_station");
+                  }
+                  handleStartBuildingPlacement();
+                  setShowBuildMenu(false);
+                }}
+                disabled={!buildOptions.find((item) => item.id === (placingBuildingType || "police_station"))?.enabled}
+              >
+                INITIATE PLACEMENT
+              </button>
+            </div>
+          </Window>
+        )}
         {showProfile && (
           <Window
             id="profile"
@@ -6072,6 +6113,54 @@ function App() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
             <span className="taskbar-item__tooltip">INCIDENTS</span>
           </button>
+
+          {/* Divider */}
+          <div style={{ width: '2px', height: '24px', background: 'rgba(255,255,255,0.1)', margin: '0 8px' }} />
+
+          {/* Action Buttons Moved from Topbar */}
+          <button
+            className={`taskbar-item ${showBuildMenu || placingStation ? 'taskbar-item--active' : ''}`}
+            onClick={() => {
+              if (placingStation) {
+                handleCancelPlacement() // Calls cancel properly logic
+                setShowBuildMenu(false)
+              } else if (stations.length > 0) {
+                setShowBuildMenu(!showBuildMenu)
+              } else {
+                setPlacingStation(true) // First station placement
+              }
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4" /><polyline points="14 2 14 8 20 8" /><path d="M22 22v-6a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v6" /><rect x="2" y="14" width="8" height="8" rx="2" /></svg>
+            <span className="taskbar-item__tooltip">{placingStation ? 'CANCEL BUILD' : 'BUILD MENU'}</span>
+          </button>
+
+          <button
+            className="taskbar-item taskbar-item--urgent"
+            onClick={() => {
+              if (mutualAidState.usesToday > 0 && mutualAidState.cooldownUntil < Date.now()) {
+                setMutualAidState((prev) => ({
+                  ...prev,
+                  usesToday: prev.usesToday - 1,
+                  cooldownUntil: Date.now() + 180000,
+                }))
+                setMoney((m) => m - 2500)
+              }
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+            <span className="taskbar-item__tooltip">BACKUP</span>
+          </button>
+
+          <button
+            className="taskbar-item"
+            onClick={() => setShowBugReporter(true)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M12 11h4" /><path d="M12 16h4" /><path d="M8 11h.01" /><path d="M8 16h.01" /></svg>
+            <span className="taskbar-item__tooltip">FEEDBACK</span>
+          </button>
+
+          <div style={{ width: '2px', height: '24px', background: 'rgba(255,255,255,0.1)', margin: '0 8px' }} />
 
           <button
             className={`taskbar-item ${showResearch ? 'taskbar-item--active' : ''}`}

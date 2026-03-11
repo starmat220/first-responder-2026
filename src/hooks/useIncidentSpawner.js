@@ -529,36 +529,59 @@ const pickIncidentType = (
   departmentId = DEFAULT_DEPARTMENT_ID,
   incidentCatalogByDepartment = null,
   anchorPosition = null,
-  weather = null
+  weather = null,
+  resolvedCount = 0,
+  stationsCount = 1
 ) => {
   const poolByDepartment = incidentCatalogByDepartment?.[departmentId]
   const coastalBandScore = getCoastalBandScore(anchorPosition)
+  
+  let baseList = []
   if (Array.isArray(poolByDepartment) && poolByDepartment.length > 0) {
-    const weatherCompatible = poolByDepartment.filter((type) =>
-      isIncidentTypeWeatherCompatible(type, weather)
+    baseList = poolByDepartment
+  } else {
+    const matchingTypes = incidentTypes.filter(
+      (type) => inferDepartmentForType(type) === departmentId
     )
-    const pool = weatherCompatible.length
-      ? weatherCompatible
-      : [FALLBACK_INCIDENT_BY_DEPARTMENT[departmentId] || 'Call for service']
-    return pickWeightedScenario(
-      pool,
-      (type) => getScenarioCoastalWeight(type, coastalBandScore)
-    )
+    baseList = matchingTypes.length
+      ? matchingTypes
+      : incidentTypes.length
+        ? incidentTypes
+        : [FALLBACK_INCIDENT_BY_DEPARTMENT[departmentId] || 'Call for service']
   }
-  const matchingTypes = incidentTypes.filter(
-    (type) => inferDepartmentForType(type) === departmentId
-  )
-  const list = matchingTypes.length
-    ? matchingTypes
-    : incidentTypes.length
-      ? incidentTypes
-      : [FALLBACK_INCIDENT_BY_DEPARTMENT[departmentId] || 'Call for service']
-  const weatherCompatible = list.filter((type) =>
+
+  let weatherCompatible = baseList.filter((type) =>
     isIncidentTypeWeatherCompatible(type, weather)
   )
+
+  if (departmentId === 'police') {
+    if (resolvedCount < 5) {
+      const STARTER_POLICE_INCIDENTS = [
+        'Noise complaint',
+        'Suspicious person',
+        'Illegal parking',
+        'Vandalism',
+        'Lost child',
+        'Graffiti complaint',
+        'Welfare check',
+        'Caller hangup',
+        'Loitering',
+        'Animal complaint'
+      ]
+      const filtered = weatherCompatible.filter(t => STARTER_POLICE_INCIDENTS.includes(t))
+      if (filtered.length > 0) weatherCompatible = filtered
+      else weatherCompatible = [...STARTER_POLICE_INCIDENTS]
+    } else if (resolvedCount < 15 || stationsCount < 2) {
+      const hardKeywords = ['shooter', 'homicide', 'kidnapping', 'hostage', 'bomb', 'riot', 'mass', 'fatal', 'pursuit', 'armed', 'arson', 'robbery']
+      const filtered = weatherCompatible.filter(t => !hardKeywords.some(k => t.toLowerCase().includes(k)))
+      if (filtered.length > 0) weatherCompatible = filtered
+    }
+  }
+
   const pool = weatherCompatible.length
     ? weatherCompatible
     : [FALLBACK_INCIDENT_BY_DEPARTMENT[departmentId] || 'Call for service']
+
   return pickWeightedScenario(
     pool,
     (type) => getScenarioCoastalWeight(type, coastalBandScore)
@@ -720,13 +743,17 @@ export const useIncidentSpawner = ({
         requiredDepartment
     }
 
-    const chosenStationForAnchor = stationList.find(s => s.department === requiredDepartment) || stationList[0] || null
+        const eligibleStations = stationList.filter(s => (s.department || DEFAULT_DEPARTMENT_ID) === requiredDepartment)
+    const chosenStationForAnchor = eligibleStations.length > 0 
+      ? eligibleStations[Math.floor(Math.random() * eligibleStations.length)] 
+      : stationList[0] || null
     const anchor = chosenStationForAnchor
       ? chosenStationForAnchor.position
       : Array.isArray(center) && center.length === 2
         ? center
         : [0, 0]
     const radiusKm = chosenStationForAnchor?.operationRadiusKm || stationRadiusKm || incidentRadiusKm
+    const eligibleStationsCount = eligibleStations.length
 
     const spawnLocation = await resolveIncidentSpawnLocation({
       anchor,
@@ -754,12 +781,14 @@ export const useIncidentSpawner = ({
       !inEarlyPhase &&
       !weatherScenario &&
       Math.random() < MAJOR_INCIDENT_CHANCE * (1 + weatherPressure * 0.35)
-    let type = pickIncidentType(
+        let type = pickIncidentType(
       incidentTypes,
       requiredDepartment,
       incidentCatalogByDepartment,
-      firstStationAnchor,
-      weatherRef.current
+      anchor,
+      weatherRef.current,
+      resolvedCount,
+      eligibleStationsCount
     )
     let priority = 2
     let rewardMultiplier = 1

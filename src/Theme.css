@@ -192,7 +192,7 @@ body {
   top: 16px;
   left: 16px;
   right: 16px;
-  height: 54px;
+  height: 44px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -222,7 +222,7 @@ body {
 }
 
 .hud-info h1 {
-  font-size: 0.75rem;
+  font-size: 0.70rem;
   margin: 0;
   letter-spacing: 0.1em;
   color: #fff;
@@ -253,14 +253,14 @@ body {
 }
 
 .hud-stat .label {
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   color: var(--color-text-muted);
   letter-spacing: 0.1em;
 }
 
 .hud-stat .value {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: #fff;
   line-height: 1;
 }
@@ -284,7 +284,7 @@ body {
 }
 
 .hud-stat--time .value {
-  font-size: 1.05rem;
+  font-size: 0.90rem;
   letter-spacing: 0.12em;
 }
 
@@ -2023,8 +2023,15 @@ body {
 }
 
 @keyframes float-gentle {
-  0%, 100% { transform: translate(-50%, -60%); }
-  50% { transform: translate(-50%, -63%); }
+
+  0%,
+  100% {
+    transform: translate(-50%, -60%);
+  }
+
+  50% {
+    transform: translate(-50%, -63%);
+  }
 }
 
 /* ========================================================
@@ -2322,7 +2329,14 @@ body {
 }
 
 @keyframes goal-dismiss {
-  to { opacity: 0; transform: translateX(20px); height: 0; padding: 0; margin: 0; overflow: hidden; }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+    height: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+  }
 }
 
 .telemetry-row--goal-dismiss {
@@ -2483,9 +2497,12 @@ body {
 }
 
 .special-label {
-  background: rgba(239, 68, 68, 0.15) !important;
-  border-color: rgba(239, 68, 68, 0.4) !important;
-  color: #fca5a5 !important;
+  background: rgba(185, 28, 28, 0.9) !important;
+  border-color: rgba(239, 68, 68, 0.8) !important;
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8) !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
 }
 
 /* ========================================================
@@ -2673,8 +2690,15 @@ body {
    ======================================================== */
 
 @keyframes panelIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ========================================================
@@ -2745,8 +2769,28 @@ body {
   border-radius: 3px;
   letter-spacing: 0.04em;
 }
-.marker__dept--police { background: rgba(59, 130, 246, 0.25); color: var(--color-police); }
-.marker__dept--fire   { background: rgba(239, 68, 68, 0.25); color: var(--color-fire); }
-.marker__dept--ems    { background: rgba(245, 158, 11, 0.25); color: var(--color-ems); }
-.marker__dept--tow    { background: rgba(234, 179, 8, 0.25); color: var(--color-tow); }
-.marker__dept--public_works { background: rgba(148, 163, 184, 0.2); color: var(--color-public_works); }
+
+.marker__dept--police {
+  background: rgba(59, 130, 246, 0.25);
+  color: var(--color-police);
+}
+
+.marker__dept--fire {
+  background: rgba(239, 68, 68, 0.25);
+  color: var(--color-fire);
+}
+
+.marker__dept--ems {
+  background: rgba(245, 158, 11, 0.25);
+  color: var(--color-ems);
+}
+
+.marker__dept--tow {
+  background: rgba(234, 179, 8, 0.25);
+  color: var(--color-tow);
+}
+
+.marker__dept--public_works {
+  background: rgba(148, 163, 184, 0.2);
+  color: var(--color-public_works);
+}

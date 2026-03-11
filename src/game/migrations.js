@@ -71,7 +71,7 @@ const migrateToV2 = (saveData) => {
     minOnDutyNight: Number(station?.minOnDutyNight) || 1,
     personnelAssigned: Number(station?.personnelAssigned) || 2,
     personnelCapacity: Number(station?.personnelCapacity) || 12,
-    jailCapacity: Number(station?.jailCapacity) || 4,
+    jailCapacity: Number(station?.jailCapacity) || 3,
     jailCount: Number(station?.jailCount) || 0,
     detentionLog: Array.isArray(station?.detentionLog) ? station.detentionLog : [],
     crewMembers: Array.isArray(station?.crewMembers) ? station.crewMembers : [],

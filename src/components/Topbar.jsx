@@ -14,15 +14,6 @@ const Topbar = ({
   saveSlot,
   setSaveSlot,
   saveSlotCount,
-  onStartPlaceStation,
-  placingStation,
-  onCancelPlacement,
-  buildOptions,
-  placingBuildingType,
-  onChangeBuildingType,
-  onStartBuildingPlacement,
-  onMutualAid,
-  onResetLayout,
   onOpenFunds,
   playerName,
   playerCallsign,
@@ -39,10 +30,7 @@ const Topbar = ({
   liveEventStatusLabel,
   campaignStatusLabel,
   departmentReputationLabel,
-  mutualAidLabel,
-  mutualAidDisabled,
   onEditProfile,
-  onReportBug,
 }) => {
   const tacticalTime = new Date().toLocaleTimeString([], {
     hour12: false,
@@ -66,12 +54,6 @@ const Topbar = ({
   const liveEventShortLabel = liveEventIsActive ? 'ACTIVE' : 'NONE'
   const campaignLabel = campaignStatusLabel || 'Campaign initializing'
   const reputationLabel = departmentReputationLabel || 'Reputation locked'
-  const selectedBuildOption =
-    buildOptions.find((item) => item.id === placingBuildingType) || buildOptions[0] || null
-  const buildActionDisabled = !selectedBuildOption?.enabled
-  const buildActionTitle = buildActionDisabled
-    ? selectedBuildOption?.lockedReason || 'Building is locked.'
-    : 'Select location on map to place this building.'
 
   return (
     <div className="hud-top">
@@ -98,7 +80,7 @@ const Topbar = ({
           </span>
         </div>
         <div className="hud-weather">
-          <span className="label">WX · {dayLabel} · {weatherAreaLabel}</span>
+          <span className="label">{weatherAreaLabel}</span>
           <span
             className="value"
             title={`${weatherLabel} · ${weatherClockLabel} · NX ${weatherEtaLabel}`}
@@ -154,58 +136,12 @@ const Topbar = ({
 
       {/* Right: Actions */}
       <div className="hud-section hud-section--actions">
-        {placingStation ? (
-          <button className="cmd-btn cmd-btn--primary" onClick={onCancelPlacement}>CANCEL</button>
-        ) : station ? (
-          <div className="hud-build-inline">
-            <select
-              className="cmd-select"
-              value={placingBuildingType}
-              onChange={(e) => onChangeBuildingType(e.target.value)}
-              title={selectedBuildOption?.lockedReason || ''}
-            >
-              {buildOptions.map(b => (
-                <option key={b.id} value={b.id} disabled={!b.enabled}>
-                  {b.enabled ? `${b.label} ($${b.cost})` : `${b.label} (Locked)`}
-                </option>
-              ))}
-            </select>
-            <button
-              className="cmd-btn cmd-btn--primary"
-              onClick={onStartBuildingPlacement}
-              disabled={buildActionDisabled}
-              title={buildActionTitle}
-            >
-              BUILD
-            </button>
-          </div>
-        ) : (
-          <button
-            className="cmd-btn"
-            onClick={onStartPlaceStation}
-          >
-            INIT STATION
-          </button>
-        )}
-
-        <button className="cmd-btn" onClick={onResetLayout} title="Reset Layout">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M3 21v-5h5" /></svg>
-        </button>
-
-        <button
-          className="cmd-btn cmd-btn--urgent"
-          onClick={onMutualAid}
-          disabled={mutualAidDisabled}
-          title={mutualAidDisabled ? 'Mutual Aid cooling down' : 'Request Mutual Aid'}
-        >
-          {mutualAidLabel || 'BACKUP'}
-        </button>
-        <button className="cmd-btn" onClick={onReportBug}>FEEDBACK</button>
-
         <select
           className="cmd-select cmd-select--slot"
           value={saveSlot}
           onChange={(e) => setSaveSlot(Number(e.target.value))}
+          title="Save Slot"
+          style={{ width: '80px' }}
         >
           {Array.from({ length: saveSlotCount }).map((_, i) => (
             <option key={i} value={i + 1}>SLOT {i + 1}</option>
