@@ -1314,6 +1314,14 @@ body {
   --window-accent-rgb: 230, 184, 91;
 }
 
+.window-wrapper--dept-coastal {
+  --window-accent-rgb: 77, 213, 255;
+}
+
+.window-wrapper--dept-logistics {
+  --window-accent-rgb: 157, 215, 255;
+}
+
 .window-wrapper--dept-public_works {
   --window-accent-rgb: 160, 174, 192;
 }
@@ -1700,6 +1708,18 @@ body {
   box-shadow: 0 0 12px rgba(96, 171, 255, 0.2);
 }
 
+.taskbar-item--guided {
+  color: #f7fbff;
+  border-color: rgba(96, 171, 255, 0.76);
+  background: linear-gradient(180deg, rgba(96, 171, 255, 0.16), rgba(255, 255, 255, 0.04));
+  box-shadow: 0 0 0 1px rgba(96, 171, 255, 0.14), 0 0 20px rgba(96, 171, 255, 0.28);
+  animation: taskbar-guided-pulse 1.65s ease-in-out infinite;
+}
+
+.taskbar-item--guided:hover {
+  border-color: rgba(160, 210, 255, 0.92);
+}
+
 .taskbar-item--urgent.taskbar-item--active {
   color: var(--color-urgent);
   border-color: var(--color-urgent);
@@ -1725,6 +1745,19 @@ body {
 
 .taskbar-item:hover .taskbar-item__tooltip {
   opacity: 1;
+}
+
+@keyframes taskbar-guided-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 1px rgba(96, 171, 255, 0.12), 0 0 16px rgba(96, 171, 255, 0.18);
+  }
+
+  50% {
+    transform: translateY(-2px);
+    box-shadow: 0 0 0 1px rgba(96, 171, 255, 0.22), 0 0 26px rgba(96, 171, 255, 0.34);
+  }
 }
 
 @keyframes ticker-scroll {
@@ -2098,6 +2131,24 @@ body {
 
 .dispatch-btn:active {
   transform: translateY(0);
+}
+
+.dispatch-btn--guided {
+  box-shadow: 0 0 0 1px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.18), 0 0 20px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.34);
+  animation: dispatch-guided-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dispatch-guided-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 1px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.16), 0 0 16px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.24);
+  }
+
+  50% {
+    transform: translateY(-1px);
+    box-shadow: 0 0 0 1px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.28), 0 0 26px rgba(var(--incident-accent-rgb, 96, 171, 255), 0.42);
+  }
 }
 
 /* ========================================================

@@ -12,6 +12,10 @@ const isObject = (value) => value && typeof value === 'object' && !Array.isArray
 const normalizeUiState = (uiState = {}) => ({
   stationPanelTab: uiState.stationPanelTab || 'overview',
   showLayers: Boolean(uiState.showLayers),
+  mapStyleId:
+    typeof uiState.mapStyleId === 'string' && uiState.mapStyleId
+      ? uiState.mapStyleId
+      : 'standard',
   showCases: Boolean(uiState.showCases),
   showTelemetry: Boolean(uiState.showTelemetry),
   showResearch: Boolean(uiState.showResearch),

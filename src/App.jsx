@@ -180,7 +180,12 @@ import { useMapPresentation } from './hooks/useMapPresentation'
 import { useGameSimulation } from './hooks/useGameSimulation'
 import { useRadioSystem } from './hooks/useRadioSystem'
 import { useVehicleReturnLogic } from './hooks/useVehicleReturnLogic'
-import { getBackupStorageKey, usePersistence, writeSaveToStorage } from './hooks/usePersistence'
+import {
+  getBackupStorageKey,
+  pickBestSaveCandidate,
+  usePersistence,
+  writeSaveToStorage,
+} from './hooks/usePersistence'
 import { useDepartmentModifiers } from './hooks/useDepartmentModifiers'
 import { GENERAL_CHATTER, DEPT_CHATTER } from './game/radioChatter'
 import { normalizeStation, normalizeVehicle, normalizeIncident, normalizeWeather } from './game/persistence'
@@ -213,6 +218,27 @@ import './Theme.css'
 
 const INCIDENT_ICON_CACHE = new Map()
 const VEHICLE_ICON_CACHE = new Map()
+const MAP_STYLE_OPTIONS = [
+  { id: 'standard', label: 'Standard' },
+  { id: 'night', label: 'Night Ops' },
+  { id: 'muted', label: 'Muted' },
+  { id: 'contrast', label: 'High Contrast' },
+]
+
+const detectPreferredSaveSlot = () => {
+  if (typeof localStorage === 'undefined') return 1
+  let bestSlot = 1
+  let bestSavedAt = 0
+  for (let slot = 1; slot <= SAVE_SLOT_COUNT; slot += 1) {
+    const candidate = pickBestSaveCandidate(`${STORAGE_KEY}.slot${slot}`, localStorage)
+    const savedAt = Number(candidate?.data?.savedAt) || 0
+    if (savedAt > bestSavedAt) {
+      bestSavedAt = savedAt
+      bestSlot = slot
+    }
+  }
+  return bestSlot
+}
 
 
 const getIncidentStagePlan = (
@@ -488,7 +514,7 @@ function App() {
   const [nextPrisonId, setNextPrisonId] = useState(1)
   const [nextIncidentId, setNextIncidentId] = useState(1)
   const [nextCaseId, setNextCaseId] = useState(1)
-  const [saveSlot, setSaveSlot] = useState(1)
+  const [saveSlot] = useState(detectPreferredSaveSlot)
   const [statusMessage, setStatusMessage] = useState('')
   const [dispatchSelection, setDispatchSelection] = useState({})
   const [hasLoadedSave, setHasLoadedSave] = useState(false)
@@ -527,6 +553,7 @@ function App() {
   const [mapLayers, setMapLayers] = useState({
     coverage: true,
   })
+  const [mapStyleId, setMapStyleId] = useState('standard')
   const [cases, setCases] = useState([])
   const [weather, setWeather] = useState(() => createInitialWeather(DEFAULT_CENTER))
 
@@ -1467,6 +1494,7 @@ function App() {
     setShowIncidents(true)
     setShowLedger(false)
     setShowLayers(false)
+    setMapStyleId('standard')
     setShowCases(false)
     setShowTelemetry(false)
     setShowSettings(false)
@@ -1521,6 +1549,7 @@ function App() {
     uiState: {
       stationPanelTab,
       showLayers,
+      mapStyleId,
       showCases,
       showTelemetry,
       tuningPresetId,
@@ -1539,7 +1568,7 @@ function App() {
     departmentReputation, liveEvent, progressionHooksUnlocked, mutualAidState,
     campaignState,
     economyReliefState,
-    stationPanelTab, showLayers, showCases, showTelemetry, tuningPresetId, incidentFilters, showNextSteps, rememberWindowPositions, showResearch, accessibilityState
+    stationPanelTab, showLayers, mapStyleId, showCases, showTelemetry, tuningPresetId, incidentFilters, showNextSteps, rememberWindowPositions, showResearch, accessibilityState
   ])
   const playtestReport = useMemo(
     () =>
@@ -1652,6 +1681,9 @@ function App() {
     const ui = data.uiState || {};
     setStationPanelTab(ui.stationPanelTab || 'overview');
     setShowLayers(Boolean(ui.showLayers));
+    setMapStyleId(
+      MAP_STYLE_OPTIONS.some((option) => option.id === ui.mapStyleId) ? ui.mapStyleId : 'standard'
+    );
     setShowCases(Boolean(ui.showCases));
     setShowTelemetry(Boolean(ui.showTelemetry));
     setShowResearch(Boolean(ui.showResearch));
@@ -4288,10 +4320,10 @@ function App() {
     const backupKey = getBackupStorageKey(storageKey)
     const backupRaw = localStorage.getItem(backupKey)
     if (!backupRaw) {
-      showMessage('No backup save found for this slot.')
+      showMessage('No backup save found for the active autosave.')
       return
     }
-    if (!window.confirm('Recover this slot from the latest backup?')) return
+    if (!window.confirm('Recover the active autosave from the latest backup?')) return
     try {
       const parsed = JSON.parse(backupRaw)
       const migrated = migrateLoadedState(parsed)
@@ -4325,7 +4357,7 @@ function App() {
     })
     const serialized = serializeSaveExport(payload)
     const dateLabel = new Date().toISOString().slice(0, 10)
-    downloadTextFile(`fr2026-slot${saveSlot}-${dateLabel}.json`, serialized)
+    downloadTextFile(`fr2026-autosave-${dateLabel}.json`, serialized)
     showMessage('Save exported.')
   }
   const handleStartImportSave = () => {
@@ -4338,7 +4370,7 @@ function App() {
     try {
       const raw = await file.text()
       const payload = parseSaveImportPayload(raw)
-      if (!window.confirm(`Import save from ${file.name}? Current slot progress will be replaced.`)) {
+      if (!window.confirm(`Import save from ${file.name}? Current autosave progress will be replaced.`)) {
         return
       }
       const importedState = migrateLoadedState({
@@ -4372,12 +4404,12 @@ function App() {
   }
   const handleDownloadBugReport = () => {
     const dateLabel = new Date().toISOString().replace(/[:.]/g, '-')
-    downloadTextFile(`fr2026-bugreport-slot${saveSlot}-${dateLabel}.json`, playtestReportText)
+    downloadTextFile(`fr2026-bugreport-autosave-${dateLabel}.json`, playtestReportText)
     showMessage('Bug report downloaded.')
   }
   const handleDownloadSessionReport = () => {
     const dateLabel = new Date().toISOString().replace(/[:.]/g, '-')
-    downloadTextFile(`fr2026-session-slot${saveSlot}-${dateLabel}.json`, playtestReportText)
+    downloadTextFile(`fr2026-session-autosave-${dateLabel}.json`, playtestReportText)
     showMessage('Session report downloaded.')
   }
   const handleStoreBugReport = () => {
@@ -4486,6 +4518,24 @@ function App() {
   const activeStationVehicles = activeStation
     ? vehicles.filter((vehicle) => vehicle.homeStationId === activeStation.id)
     : vehicles
+  const currentTutorialStep = useMemo(() => {
+    if (showWelcome && stations.length === 0) return 'place_station'
+    if (stations.length > 0 && vehicles.length === 0 && !tutorialFlags.buy_vehicle) {
+      return 'buy_vehicle'
+    }
+    if (
+      vehicles.length > 0 &&
+      resolvedCount === 0 &&
+      incidents.some((incident) => incident.status === INCIDENT_STATUS.open) &&
+      !tutorialFlags.first_dispatch
+    ) {
+      return 'first_dispatch'
+    }
+    if (resolvedCount === 1 && !tutorialFlags.first_resolve) {
+      return 'first_resolve'
+    }
+    return null
+  }, [incidents, resolvedCount, showWelcome, stations.length, tutorialFlags, vehicles.length])
   const parkedCount = activeStationVehicles.filter((vehicle) => vehicle.parked).length
   const stationSummary = (() => {
     if (!activeStation) return null
@@ -4857,9 +4907,6 @@ function App() {
         totalVehicles={activeStation?.garageCapacity || activeStationVehicles.length}
         station={activeStation}
         hasStations={stations.length > 0}
-        saveSlot={saveSlot}
-        setSaveSlot={setSaveSlot}
-        saveSlotCount={SAVE_SLOT_COUNT}
         onStartPlaceStation={handleStartPlaceStation}
         placingStation={placingStation}
         onCancelPlacement={handleCancelPlacement}
@@ -5252,7 +5299,7 @@ function App() {
         <MapContainer
           center={DEFAULT_CENTER}
           zoom={13}
-          className={`map ${placingStation ? 'map--placing' : ''}`}
+          className={`map map--style-${mapStyleId} ${placingStation ? 'map--placing' : ''}`}
         >
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -5583,6 +5630,7 @@ function App() {
               getIncidentEdgePercent={getIncidentCrewEdgePercent}
               hasStations={stations.length > 0}
               hasVehicles={vehicles.length > 0}
+              tutorialStep={currentTutorialStep}
             />
           </Window>
         )}
@@ -5592,35 +5640,56 @@ function App() {
             id="layers"
             title="MAP LAYERS"
             initialPos={{ x: window.innerWidth - 580, y: 96 }}
-            initialSize={{ width: 220, height: 180 }}
+            initialSize={{ width: 280, height: 276 }}
             onClose={() => setShowLayers(false)}
             resetKey={uiResetKey}
           >
-            <label className="layer-toggle">
-              <input
-                type="checkbox"
-                checked={mapLayers.coverage}
-                onChange={() =>
-                  setMapLayers((prev) => ({ ...prev, coverage: !prev.coverage }))
-                }
-              />
-              <span>Station coverage radius</span>
-            </label>
-            <label className="layer-toggle">
-              <input
-                type="checkbox"
-                checked={focusMode}
-                onChange={() => setFocusMode((prev) => !prev)}
-              />
-              <span>
-                Focus active department <kbd className="key-hint">F</kbd>
-              </span>
-            </label>
-            {isFocusEnabled && (
+            <div className="layers-panel__group">
+              <p className="layers-panel__title">Map Style</p>
+              <div className="layers-style-grid">
+                {MAP_STYLE_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    className={`layers-style-btn ${mapStyleId === option.id ? 'layers-style-btn--active' : ''}`}
+                    onClick={() => setMapStyleId(option.id)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <p className="layers-panel__hint">
-                Focus: {DEPARTMENTS[focusDepartmentId]?.label || 'Department'}
+                Visual-only overlay preset. Dispatch coverage and gameplay stay unchanged.
               </p>
-            )}
+            </div>
+            <div className="layers-panel__group">
+              <p className="layers-panel__title">Overlays</p>
+              <label className="layer-toggle">
+                <input
+                  type="checkbox"
+                  checked={mapLayers.coverage}
+                  onChange={() =>
+                    setMapLayers((prev) => ({ ...prev, coverage: !prev.coverage }))
+                  }
+                />
+                <span>Station coverage radius</span>
+              </label>
+              <label className="layer-toggle">
+                <input
+                  type="checkbox"
+                  checked={focusMode}
+                  onChange={() => setFocusMode((prev) => !prev)}
+                />
+                <span>
+                  Focus active department <kbd className="key-hint">F</kbd>
+                </span>
+              </label>
+              {isFocusEnabled && (
+                <p className="layers-panel__hint">
+                  Focus: {DEPARTMENTS[focusDepartmentId]?.label || 'Department'}
+                </p>
+              )}
+            </div>
           </Window>
         )}
 
@@ -5901,7 +5970,7 @@ function App() {
                 <div className="settings-row settings-row--action-inline">
                   <span>
                     <strong>Save Recovery</strong>
-                    <small>Restore this slot from the latest auto-backup snapshot.</small>
+                    <small>Restore the active autosave from the latest backup snapshot.</small>
                   </span>
                   <button className="cmd-btn cmd-btn--primary" onClick={handleRecoverFromBackup}>
                     Recover
@@ -5910,7 +5979,7 @@ function App() {
                 <div className="settings-row settings-row--action-inline">
                   <span>
                     <strong>Save Export</strong>
-                    <small>Download this slot as a JSON backup file.</small>
+                    <small>Download the current autosave as a JSON backup file.</small>
                   </span>
                   <button className="cmd-btn" onClick={handleExportSave}>
                     Export
@@ -5919,7 +5988,7 @@ function App() {
                 <div className="settings-row settings-row--action-inline">
                   <span>
                     <strong>Save Import</strong>
-                    <small>Import a JSON backup into the active slot.</small>
+                    <small>Import a JSON backup into the active autosave.</small>
                   </span>
                   <button className="cmd-btn" onClick={handleStartImportSave}>
                     Import
@@ -6159,6 +6228,7 @@ function App() {
               prisonSummary={prisonSummary}
               onUnassignCrewMember={handleUnassignCrewMember}
               onAssignCrewMember={handleAssignCrewMember}
+              tutorialStep={currentTutorialStep}
             />
           </Window>
         )}
@@ -6281,31 +6351,17 @@ function App() {
         )}
 
         {/* In-game tutorial overlay for new players */}
-        {(() => {
-          const dismissed = tutorialFlags
-          let step = null
-          if (!showWelcome && stations.length === 0) {
-            step = null // Map overlay handles this phase
-          } else if (stations.length > 0 && vehicles.length === 0 && !dismissed.buy_vehicle) {
-            step = 'buy_vehicle'
-          } else if (vehicles.length > 0 && resolvedCount === 0 && incidents.filter(i => i.status === 'open').length > 0 && !dismissed.first_dispatch) {
-            step = 'first_dispatch'
-          } else if (resolvedCount === 1 && !dismissed.first_resolve) {
-            step = 'first_resolve'
-          }
-          if (!step) return null
-          return (
-            <TutorialOverlay
-              tutorialStep={step}
-              stations={stations}
-              vehicles={vehicles}
-              resolvedCount={resolvedCount}
-              onDismiss={(dismissedStep) => {
-                setTutorialFlags((prev) => ({ ...prev, [dismissedStep]: true }))
-              }}
-            />
-          )
-        })()}
+        {currentTutorialStep && (
+          <TutorialOverlay
+            tutorialStep={currentTutorialStep}
+            stations={stations}
+            vehicles={vehicles}
+            resolvedCount={resolvedCount}
+            onDismiss={(dismissedStep) => {
+              setTutorialFlags((prev) => ({ ...prev, [dismissedStep]: true }))
+            }}
+          />
+        )}
 
         <div className="taskbar">
           <button
@@ -6333,7 +6389,7 @@ function App() {
           </button>
 
           <button
-            className={`taskbar-item ${showIncidents ? 'taskbar-item--active' : ''}`}
+            className={`taskbar-item ${showIncidents ? 'taskbar-item--active' : ''} ${currentTutorialStep === 'first_dispatch' ? 'taskbar-item--guided' : ''}`}
             onClick={() => setShowIncidents(!showIncidents)}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
@@ -6345,7 +6401,7 @@ function App() {
 
           {/* Action Buttons Moved from Topbar */}
           <button
-            className={`taskbar-item ${showBuildMenu || placingStation ? 'taskbar-item--active' : ''}`}
+            className={`taskbar-item ${showBuildMenu || placingStation ? 'taskbar-item--active' : ''} ${currentTutorialStep === 'place_station' ? 'taskbar-item--guided' : ''}`}
             onClick={() => {
               if (placingStation) {
                 handleCancelPlacement() // Calls cancel properly logic

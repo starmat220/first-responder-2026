@@ -46,6 +46,7 @@ const IncidentCard = ({
   formatSeconds = (s) => s,
   onQuickDispatch,
   getIncidentEdgePercent,
+  tutorialStep,
 }) => {
   if (!incident) return null
   const isOnScene = incident.status === 'on_scene'
@@ -266,7 +267,7 @@ const IncidentCard = ({
             SEND
           </button>
           <button
-            className="dispatch-btn"
+            className={`dispatch-btn ${tutorialStep === 'first_dispatch' ? 'dispatch-btn--guided' : ''}`}
             onClick={() => onQuickDispatch && onQuickDispatch(incident.id)}
             disabled={!canDispatch}
             title="Quick Dispatch - automatically sends the best available next unit"
@@ -294,6 +295,7 @@ const IncidentsPanel = ({
   getIncidentEdgePercent,
   hasStations,
   hasVehicles,
+  tutorialStep,
 }) => {
   const openCount = incidents.filter((i) => i.status === 'open').length
   const respondingCount = incidents.filter((i) => i.status === 'responding').length
@@ -389,6 +391,7 @@ const IncidentsPanel = ({
                 formatSeconds={formatSeconds}
                 onQuickDispatch={onQuickDispatch}
                 getIncidentEdgePercent={getIncidentEdgePercent}
+                tutorialStep={tutorialStep}
               />
             ))}
           </div>

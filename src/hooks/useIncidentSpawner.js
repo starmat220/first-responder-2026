@@ -625,6 +625,17 @@ const getIncidentRequirements = (type, departmentId = DEFAULT_DEPARTMENT_ID) => 
   }
 }
 
+const buildFallbackIncidentAddress = (position, areaLabel = 'Oromocto') => {
+  if (Array.isArray(position) && position.length === 2) {
+    const lat = Number(position[0])
+    const lng = Number(position[1])
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return `Sector ${lat.toFixed(3)}, ${lng.toFixed(3)} · ${areaLabel}`
+    }
+  }
+  return `Local Sector · ${areaLabel}`
+}
+
 export const useIncidentSpawner = ({
   stations,
   vehicles,
@@ -755,16 +766,26 @@ export const useIncidentSpawner = ({
     const radiusKm = chosenStationForAnchor?.operationRadiusKm || stationRadiusKm || incidentRadiusKm
     const eligibleStationsCount = eligibleStations.length
 
-    const spawnLocation = await resolveIncidentSpawnLocation({
-      anchor,
-      radiusKm,
-      randomPointNear,
-      attempts: 8,
-      areaLabel: 'Oromocto',
-    })
+    let spawnLocation = null
+    try {
+      spawnLocation = await resolveIncidentSpawnLocation({
+        anchor,
+        radiusKm,
+        randomPointNear,
+        attempts: 8,
+        areaLabel: 'Oromocto',
+      })
+    } catch (error) {
+      console.warn('Incident location resolution failed, using fallback sector.', error)
+    }
 
     if (!spawnLocation) {
-      return false
+      const fallbackPosition = randomPointNear(anchor, Math.max(0.45, Math.min(radiusKm || 1, 1.6)))
+      spawnLocation = {
+        position: fallbackPosition,
+        address: buildFallbackIncidentAddress(fallbackPosition, 'Oromocto'),
+        usedFallback: true,
+      }
     }
     const { position, address: finalAddress } = spawnLocation
     const incidentDistrictId = getDistrictIdForPosition(position, {
@@ -830,9 +851,8 @@ export const useIncidentSpawner = ({
       priority = Math.max(2, priority)
     }
 
-    const incidentAddress = finalAddress || 'Local Road, Oromocto'
+    let incidentAddress = finalAddress || buildFallbackIncidentAddress(position, 'Oromocto')
     const normalizedType = String(type || '').trim().toLowerCase()
-    const normalizedAddress = String(incidentAddress || '').trim().toLowerCase()
     const activeStatuses = [
       incidentStatus.open,
       incidentStatus.responding,
@@ -844,12 +864,12 @@ export const useIncidentSpawner = ({
       const itemAddress = String(item.address || '').trim().toLowerCase()
       return (
         itemType === normalizedType &&
-        itemAddress === normalizedAddress &&
+        itemAddress === String(incidentAddress || '').trim().toLowerCase() &&
         (item.requiredDepartment || DEFAULT_DEPARTMENT_ID) === reqDept
       )
     })
     if (hasDuplicateActiveIncident) {
-      return false
+      incidentAddress = `${incidentAddress} [${Date.now().toString().slice(-4)}]`
     }
 
     let incidentId

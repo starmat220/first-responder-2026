@@ -8,7 +8,7 @@ import '../Theme.css'
 const TAB_META = {
   overview: {
     label: 'Overview',
-    hint: 'Station status, operational risk, and live capacity at a glance.',
+    hint: 'Readiness, bottlenecks, and operating posture at a glance.',
   },
   vehicles: {
     label: 'Fleet',
@@ -81,6 +81,7 @@ const StationPanel = ({
   onUpdateMinOnDuty,
   onAssignCrewMember,
   onUnassignCrewMember,
+  tutorialStep,
 }) => {
   const departmentId = station?.department || DEPARTMENTS.police.id
   const isPolice = departmentId === DEPARTMENTS.police.id
@@ -89,7 +90,6 @@ const StationPanel = ({
   const isTow = departmentId === DEPARTMENTS.tow.id
   const isCoastal = departmentId === DEPARTMENTS.coastal.id
   const isLogistics = departmentId === DEPARTMENTS.logistics.id
-  const isPW = departmentId === DEPARTMENTS.public_works.id
 
   const glyphText = isPolice
     ? 'P'
@@ -143,6 +143,7 @@ const StationPanel = ({
     : 0
   const unitLoad = vehicles.length > 0 ? activeVehicles / vehicles.length : 0
   const personnelLoad = personnelCapacity > 0 ? personnelAssigned / personnelCapacity : 0
+  const crewShortfallCount = vehicles.filter(v => v.crewAssigned < v.crewRequired).length
   const riskSignals = []
   if (incidentPressure >= 3) riskSignals.push(`High local call pressure (${incidentPressure})`)
   if (unitLoad > 0.7) riskSignals.push('Most units are committed')
@@ -151,10 +152,86 @@ const StationPanel = ({
   if (isEms && patientLoad >= 0.85) riskSignals.push('Treatment capacity nearing saturation')
   if (isTow && impoundLoad >= 0.85) riskSignals.push('Impound capacity nearing saturation')
   const riskLevel = riskSignals.length >= 3 ? 'High' : riskSignals.length > 0 ? 'Elevated' : 'Stable'
+  const riskTone =
+    riskLevel === 'High'
+      ? { borderColor: 'rgba(239, 68, 68, 0.45)', color: '#ffb4b4' }
+      : riskLevel === 'Elevated'
+        ? { borderColor: 'rgba(245, 158, 11, 0.45)', color: '#ffd58f' }
+        : { borderColor: 'rgba(16, 185, 129, 0.35)', color: '#a8f0cf' }
+  const shiftPresetLabel =
+    station?.shiftPreset === 'day'
+      ? 'Day Shift 08:00-20:00'
+      : station?.shiftPreset === 'night'
+        ? 'Night Shift 20:00-08:00'
+        : '24/7 Full Coverage'
+  const primaryRoleLabel = isPolice
+    ? 'Patrol coverage and custody flow management.'
+    : isFire
+      ? 'Suppression readiness and rapid apparatus deployment.'
+      : isEms
+        ? 'Patient stabilization and transport continuity.'
+        : isTow
+          ? 'Clearance flow and roadway recovery throughput.'
+          : isCoastal
+            ? 'Waterfront rescue coverage and marine response readiness.'
+            : isLogistics
+              ? 'Regional coordination, staging, and support continuity.'
+              : 'Infrastructure continuity and utility response readiness.'
+  const nextMoveLabel = vehicles.length === 0
+    ? 'Open Fleet and purchase the first unit.'
+    : crewShortfallCount > 0
+      ? 'Open Personnel to fill roster gaps, then assign crews in Fleet.'
+      : incidentPressure >= 3
+        ? 'Sector pressure is climbing. Expansion or reserve coverage should be next.'
+        : 'Station is balanced. Monitor demand and expand only when pressure increases.'
+  const specialCapacityCard = isPolice
+    ? {
+      title: 'Detention',
+      value: `${detentionCount}/${detentionCapacity || 0}`,
+      detail: 'holding cells occupied',
+      alert: detentionLoad >= 0.85,
+    }
+    : isEms
+      ? {
+        title: 'Treatment',
+        value: `${patientCount}/${patientCapacity || 0}`,
+        detail: 'patients in care',
+        alert: patientLoad >= 0.85,
+      }
+      : isTow
+        ? {
+          title: 'Impound',
+          value: `${impoundCount}/${impoundCapacity || 0}`,
+          detail: 'recovered vehicles stored',
+          alert: impoundLoad >= 0.85,
+        }
+        : {
+          title: 'Coverage',
+          value: `${station?.operationRadiusKm || 0}km`,
+          detail: 'operational reach',
+          alert: false,
+        }
   const activeSpecialization = (specializationOptions || []).find(
     (item) => item.id === (station?.specialization || 'standard')
   )
-  const showOverviewProcurement = resolvedStationTab === 'vehicles'
+  const HIDE_LEGACY_OVERVIEW_PROCUREMENT = true
+  const guideFleet = tutorialStep === 'buy_vehicle'
+  const guidePersonnel = tutorialStep === 'buy_vehicle' && vehicles.length > 0 && crewShortfallCount > 0
+  const commandDirective = vehicles.length === 0
+    ? {
+      eyebrow: 'Next Step',
+      title: 'No units staged',
+      detail: 'Open Fleet and purchase the first unit to put this station into service.',
+      accent: 'var(--color-success)',
+    }
+    : crewShortfallCount > 0
+      ? {
+        eyebrow: 'Staffing Gap',
+        title: `${crewShortfallCount} unit${crewShortfallCount !== 1 ? 's' : ''} need crew`,
+        detail: 'Hire in Personnel, then return to Fleet to assign crews and clear the gap.',
+        accent: 'var(--color-ems)',
+      }
+      : null
 
   return (
     <div
@@ -208,7 +285,7 @@ const StationPanel = ({
         {visibleTabs.map((tabId) => (
           <button
             key={tabId}
-            className={`menu-tab ${resolvedStationTab === tabId ? 'menu-tab--active' : ''}`}
+            className={`menu-tab ${resolvedStationTab === tabId ? 'menu-tab--active' : ''} ${guideFleet && tabId === 'vehicles' ? 'menu-tab--guided' : ''} ${guidePersonnel && tabId === 'staffing' ? 'menu-tab--guided' : ''}`}
             onClick={() => setStationPanelTab(tabId)}
           >
             {TAB_META[tabId].label}
@@ -233,43 +310,53 @@ const StationPanel = ({
                 </div>
               </div>
             )}
-            {vehicles.length > 0 && vehicles.filter(v => v.crewAssigned < v.crewRequired).length > 0 && (
+            {vehicles.length > 0 && crewShortfallCount > 0 && (
               <div className="beginner-banner" style={{ marginBottom: '12px', borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.05)' }}>
                 <div className="beginner-banner__icon">👮</div>
                 <div className="beginner-banner__body">
-                  <p><strong>{vehicles.filter(v => v.crewAssigned < v.crewRequired).length} unit{vehicles.filter(v => v.crewAssigned < v.crewRequired).length !== 1 ? 's' : ''} need crew.</strong> Go to the <em>Personnel</em> tab to hire staff, then <em>Fleet</em> to assign crew to units.</p>
+                  <p><strong>{crewShortfallCount} unit{crewShortfallCount !== 1 ? 's' : ''} need crew.</strong> Go to the <em>Personnel</em> tab to hire staff, then <em>Fleet</em> to assign crew to units.</p>
                 </div>
               </div>
             )}
-            <div style={{ display: 'grid', gap: '16px' }}>
-              <ModuleCard title="Command Focus">
-                <div className="station-grid">
+            <div className="station-overview-layout">
+              <ModuleCard
+                title="Status Board"
+                action={(
+                  <span className="station-pill" style={riskTone}>
+                    {riskLevel}
+                  </span>
+                )}
+              >
+                <div className="station-overview-strip">
+                  <div className="station-overview-metric">
+                    <span className="station-overview-metric__label">Ready</span>
+                    <strong className="station-overview-metric__value">{availableCount}/{vehicles.length}</strong>
+                    <span className="muted">{activeVehicles} committed</span>
+                  </div>
+                  <div className="station-overview-metric">
+                    <span className="station-overview-metric__label">Sector</span>
+                    <strong className="station-overview-metric__value">{incidentPressure}</strong>
+                    <span className="muted">active calls nearby</span>
+                  </div>
+                  <div className="station-overview-metric">
+                    <span className="station-overview-metric__label">Staffing</span>
+                    <strong className="station-overview-metric__value">{Math.round(personnelLoad * 100)}%</strong>
+                    <span className="muted">{freePersonnelSlots} slots open</span>
+                  </div>
+                </div>
+                <div className="station-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                   <div className="station-tile">
                     <p className="station-tile__title">Primary Role</p>
-                    <p className="muted">
-                      {isPolice && 'Patrol coverage and custody flow management.'}
-                      {isFire && 'Suppression readiness and rapid apparatus deployment.'}
-                      {isEms && 'Patient stabilization and transport continuity.'}
-                      {isTow && 'Clearance flow and roadway recovery throughput.'}
-                      {isCoastal && 'Waterfront rescue coverage and marine response readiness.'}
-                      {isLogistics && 'Regional coordination, staging, and support continuity.'}
-                      {isPW && 'Infrastructure continuity and utility response readiness.'}
-                    </p>
+                    <p className="muted">{primaryRoleLabel}</p>
                   </div>
                   <div className="station-tile">
-                    <p className="station-tile__title">Best Next Move</p>
-                    <p className="muted">
-                      {vehicles.length === 0
-                        ? 'Open Fleet and purchase a unit.'
-                        : vehicles.filter(v => v.crewAssigned < v.crewRequired).length > 0
-                          ? 'Open Personnel to crew your units.'
-                          : 'Monitor incidents and expand where pressure is building.'}
-                    </p>
+                    <p className="station-tile__title">Recommended Next Move</p>
+                    <p className="muted">{nextMoveLabel}</p>
                   </div>
                 </div>
               </ModuleCard>
 
-              {showOverviewProcurement && (
+              {!HIDE_LEGACY_OVERVIEW_PROCUREMENT && (
               <ModuleCard
                 title="Procurement"
                 action={
@@ -316,26 +403,43 @@ const StationPanel = ({
             </div>
 
             <div style={{ display: 'grid', gap: '16px' }}>
-              <ModuleCard
-                title="Operational Risk"
-                action={
-                  <span className="station-pill">
-                    {riskLevel}
-                  </span>
-                }
-              >
-                <div className="station-grid" style={{ marginBottom: '8px' }}>
+              <ModuleCard title="Capacity Watch">
+                <div className="station-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
                   <div className="station-tile">
-                    <p className="station-tile__title">Incident Pressure</p>
-                    <p className="muted">{incidentPressure} active calls in sector</p>
+                    <p className="station-tile__title">Fleet</p>
+                    <p className="muted">{vehicles.length}/{fleetCapacity} deployed capacity</p>
                   </div>
                   <div className="station-tile">
-                    <p className="station-tile__title">Unit Utilization</p>
-                    <p className="muted">{Math.round(unitLoad * 100)}% committed ({activeVehicles}/{Math.max(1, vehicles.length)})</p>
+                    <p className="station-tile__title">Personnel</p>
+                    <p className="muted">{personnelAssigned}/{personnelCapacity} rostered</p>
                   </div>
-                  <div className={`station-tile ${isPolice && detentionLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
-                    <p className="station-tile__title">Personnel Load</p>
-                    <p className="muted">{Math.round(personnelLoad * 100)}% staffed ({personnelAssigned}/{personnelCapacity})</p>
+                  <div className={`station-tile ${specialCapacityCard.alert ? 'station-tile--alert' : ''}`}>
+                    <p className="station-tile__title">{specialCapacityCard.title}</p>
+                    <p className="muted">{specialCapacityCard.value} {specialCapacityCard.detail}</p>
+                  </div>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Reach</p>
+                    <p className="muted">{station?.operationRadiusKm || 0}km service radius</p>
+                  </div>
+                </div>
+              </ModuleCard>
+              <ModuleCard title="Operating Posture">
+                <div className="station-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginBottom: '8px' }}>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Doctrine</p>
+                    <p className="muted">{activeSpecialization?.label || 'Standard Operations'}</p>
+                  </div>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Shift Coverage</p>
+                    <p className="muted">{shiftPresetLabel}</p>
+                  </div>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Minimum Duty</p>
+                    <p className="muted">{station?.minOnDutyDay ?? 1} day / {station?.minOnDutyNight ?? 1} night</p>
+                  </div>
+                  <div className="station-tile">
+                    <p className="station-tile__title">Crew Gaps</p>
+                    <p className="muted">{crewShortfallCount} unit{crewShortfallCount !== 1 ? 's' : ''} awaiting crew</p>
                   </div>
                 </div>
                 <div className="station-list station-list--compact">
@@ -343,57 +447,15 @@ const StationPanel = ({
                     riskSignals.map((signal) => (
                       <div key={signal} className="station-list__row">
                         <span>{signal}</span>
-                        <span className="muted">Monitor</span>
+                        <span className="muted">Attention</span>
                       </div>
                     ))
                   ) : (
                     <div className="station-list__row">
-                      <span>No active risk signals</span>
+                      <span>No immediate bottlenecks detected</span>
                       <span className="muted">Stable</span>
                     </div>
                   )}
-                </div>
-              </ModuleCard>
-
-              <ModuleCard title="Resources">
-                <div className="station-grid">
-                  <div className="station-tile">
-                    <p className="station-tile__title">Ready Units</p>
-                    <p className="muted">{availableCount} available now</p>
-                  </div>
-                  <div className="station-tile">
-                    <p className="station-tile__title">Garage Capacity</p>
-                    <p className="muted">{vehicles.length}/{fleetCapacity} ({freeFleetSlots} free)</p>
-                  </div>
-                  <div className="station-tile">
-                    <p className="station-tile__title">Personnel Slots</p>
-                    <p className="muted">{personnelAssigned}/{personnelCapacity} ({freePersonnelSlots} open)</p>
-                  </div>
-                  {isEms && (
-                    <div className={`station-tile ${patientLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
-                      <p className="station-tile__title">Treatment Capacity</p>
-                      <p className="muted">{patientCount}/{patientCapacity || 0} patients in care</p>
-                    </div>
-                  )}
-                  {isPolice && (
-                    <div className={`station-tile ${detentionLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
-                      <p className="station-tile__title">Detention Capacity</p>
-                      <p className="muted">{detentionCount}/{detentionCapacity || 0} in holding</p>
-                    </div>
-                  )}
-                  {isTow && (
-                    <div className={`station-tile ${impoundLoad >= 0.85 ? 'station-tile--alert' : ''}`}>
-                      <p className="station-tile__title">Impound Capacity</p>
-                      <p className="muted">{impoundCount}/{impoundCapacity || 0} recovered vehicles stored</p>
-                    </div>
-                  )}
-                </div>
-                <div className="station-kpi" style={{ marginTop: '8px' }}>
-                  <p className="station-kpi__label">Active Doctrine</p>
-                  <p className="station-kpi__value">{activeSpecialization?.label || 'Standard Operations'}</p>
-                  <p className="muted" style={{ margin: 0, fontSize: '0.64rem' }}>
-                    {activeSpecialization?.description || 'Balanced station operations profile.'}
-                  </p>
                 </div>
               </ModuleCard>
             </div>
@@ -425,7 +487,7 @@ const StationPanel = ({
                   availableUnits.map((unit) => (
                     <button
                       key={unit.id}
-                      className="procurement-btn"
+                      className={`procurement-btn ${guideFleet && vehicles.length === 0 ? 'procurement-btn--guided' : ''}`}
                       onClick={() => handleBuyVehicle(unit.id)}
                       disabled={freeFleetSlots <= 0}
                       title={

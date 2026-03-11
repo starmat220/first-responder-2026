@@ -11,9 +11,6 @@ const Topbar = ({
   totalVehicles,
   station,
   hasStations,
-  saveSlot,
-  setSaveSlot,
-  saveSlotCount,
   onOpenFunds,
   playerName,
   playerCallsign,
@@ -137,17 +134,10 @@ const Topbar = ({
 
       {/* Right: Actions */}
       <div className="hud-section hud-section--actions">
-        <select
-          className="cmd-select cmd-select--slot"
-          value={saveSlot}
-          onChange={(e) => setSaveSlot(Number(e.target.value))}
-          title="Save Slot"
-          style={{ width: '80px' }}
-        >
-          {Array.from({ length: saveSlotCount }).map((_, i) => (
-            <option key={i} value={i + 1}>SLOT {i + 1}</option>
-          ))}
-        </select>
+        <div className="hud-stat" title="Autosave is always active">
+          <span className="label">SAVE</span>
+          <span className="value" style={{ color: 'var(--color-success)' }}>AUTO</span>
+        </div>
       </div>
     </div>
   )
