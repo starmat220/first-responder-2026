@@ -2545,20 +2545,55 @@
   height: 11px;
 }
 
+.map[class*='map--style-'] .leaflet-tile-pane,
+.map[class*='map--style-'] .leaflet-tile {
+  transition: filter 0.22s ease, opacity 0.22s ease;
+}
+
+.map--style-standard {
+  background: #1f252c;
+}
+
+.map--style-standard .leaflet-tile-pane,
 .map--style-standard .leaflet-tile {
-  filter: none;
+  filter: none !important;
+  opacity: 1 !important;
 }
 
+.map--style-night {
+  background:
+    radial-gradient(circle at top, rgba(44, 92, 148, 0.24), transparent 44%),
+    linear-gradient(180deg, #08111d, #050b13 74%);
+}
+
+.map--style-night .leaflet-tile-pane,
 .map--style-night .leaflet-tile {
-  filter: brightness(0.48) contrast(1.2) saturate(0.82) hue-rotate(198deg);
+  filter: invert(1) hue-rotate(192deg) saturate(0.56) brightness(0.46) contrast(1.2) !important;
+  opacity: 0.9 !important;
 }
 
+.map--style-muted {
+  background:
+    radial-gradient(circle at top, rgba(184, 196, 213, 0.14), transparent 50%),
+    linear-gradient(180deg, #14191f, #0d1218 78%);
+}
+
+.map--style-muted .leaflet-tile-pane,
 .map--style-muted .leaflet-tile {
-  filter: saturate(0.52) contrast(0.94) brightness(0.96);
+  filter: grayscale(0.72) saturate(0.42) brightness(0.92) contrast(0.96) !important;
+  opacity: 0.96 !important;
 }
 
+.map--style-contrast {
+  background:
+    radial-gradient(circle at top, rgba(255, 232, 166, 0.16), transparent 46%),
+    linear-gradient(180deg, #17140b, #0f1116 78%);
+}
+
+.map--style-contrast .leaflet-tile-pane,
 .map--style-contrast .leaflet-tile {
-  filter: saturate(1.18) contrast(1.28) brightness(1.06);
+  filter: saturate(1.55) contrast(1.42) brightness(1.08) sepia(0.14) !important;
+  opacity: 1 !important;
 }
 
 .marker__state--detention {
@@ -3936,6 +3971,47 @@
 .station-overview-layout {
   display: grid;
   gap: 16px;
+}
+
+.station-directive {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--directive-accent, var(--panel-accent)) 34%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--directive-accent, var(--panel-accent)) 13%, rgba(11, 18, 28, 0.98)),
+    rgba(8, 13, 22, 0.96)
+  );
+}
+
+.station-directive__copy {
+  display: grid;
+  gap: 3px;
+}
+
+.station-directive__eyebrow {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  color: var(--directive-accent, var(--panel-accent));
+}
+
+.station-directive__title {
+  font-size: 0.88rem;
+  line-height: 1.1;
+  color: #f4f8ff;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+
+.station-directive__detail {
+  margin: 0;
+  font-size: 0.67rem;
+  line-height: 1.4;
+  color: #aebfd3;
 }
 
 .station-overview-strip {

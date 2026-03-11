@@ -297,9 +297,9 @@ const StationPanel = ({
       {/* 4. Content Area */}
       <div className="list-container station-content" style={{ padding: '0' }}>
         {resolvedStationTab === 'overview' && (
-          <div className="department-module">
+          <div style={{ display: 'grid', gap: '16px' }}>
             {/* Beginner callout: shown when station has no vehicles yet */}
-            {vehicles.length === 0 && (
+            {tutorialStep === '__legacy_banner_disabled__' && vehicles.length === 0 && (
               <div className="beginner-banner" style={{ marginBottom: '12px' }}>
                 <div className="beginner-banner__icon">🚔</div>
                 <div className="beginner-banner__body">
@@ -310,7 +310,7 @@ const StationPanel = ({
                 </div>
               </div>
             )}
-            {vehicles.length > 0 && crewShortfallCount > 0 && (
+            {tutorialStep === '__legacy_banner_disabled__' && vehicles.length > 0 && crewShortfallCount > 0 && (
               <div className="beginner-banner" style={{ marginBottom: '12px', borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.05)' }}>
                 <div className="beginner-banner__icon">👮</div>
                 <div className="beginner-banner__body">
@@ -327,6 +327,18 @@ const StationPanel = ({
                   </span>
                 )}
               >
+                {commandDirective && (
+                  <div
+                    className="station-directive"
+                    style={{ '--directive-accent': commandDirective.accent }}
+                  >
+                    <div className="station-directive__copy">
+                      <span className="station-directive__eyebrow">{commandDirective.eyebrow}</span>
+                      <strong className="station-directive__title">{commandDirective.title}</strong>
+                      <p className="station-directive__detail">{commandDirective.detail}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="station-overview-strip">
                   <div className="station-overview-metric">
                     <span className="station-overview-metric__label">Ready</span>
@@ -402,7 +414,7 @@ const StationPanel = ({
               )}
             </div>
 
-            <div style={{ display: 'grid', gap: '16px' }}>
+            <div className="department-module">
               <ModuleCard title="Capacity Watch">
                 <div className="station-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
                   <div className="station-tile">

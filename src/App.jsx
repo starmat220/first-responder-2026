@@ -6,6 +6,7 @@ import {
   Popup,
   TileLayer,
   Tooltip,
+  useMap,
   useMapEvents,
 } from 'react-leaflet'
 import { PRIORITY_CONFIG, getPriorityConfig } from './config/priority'
@@ -485,6 +486,33 @@ const MapZoomTracker = ({ onZoomChange }) => {
       onZoomChange(event.target.getZoom())
     },
   })
+  return null
+}
+
+const MAP_STYLE_CLASS_NAMES = [
+  'map--style-standard',
+  'map--style-night',
+  'map--style-muted',
+  'map--style-contrast',
+]
+
+const MapStyleController = ({ mapStyleId }) => {
+  const map = useMap()
+
+  useEffect(() => {
+    const container = map.getContainer()
+    const tilePane = map.getPanes()?.tilePane
+    const activeClassName = `map--style-${mapStyleId || 'standard'}`
+
+    MAP_STYLE_CLASS_NAMES.forEach((className) => {
+      container.classList.remove(className)
+      tilePane?.classList.remove(className)
+    })
+
+    container.classList.add(activeClassName)
+    tilePane?.classList.add(activeClassName)
+  }, [map, mapStyleId])
+
   return null
 }
 
@@ -5310,6 +5338,7 @@ function App() {
             active={placingStation}
             onMapClick={handleMapClick}
           />
+          <MapStyleController mapStyleId={mapStyleId} />
           <MapZoomTracker onZoomChange={setMapZoom} />
 
           {placingStation && placingStationPosition && (
